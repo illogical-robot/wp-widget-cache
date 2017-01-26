@@ -303,7 +303,7 @@ class WCache
     {
         $data = $this->__load_cache($keypath, $time);
 
-        if($data !== false) {
+        if ($data !== false) {
             $data = $this->__pack_data($data);
         }
 
