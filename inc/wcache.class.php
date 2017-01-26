@@ -285,11 +285,14 @@ class WCache
 
         $filename = $this->path . $keypath;
 
-        if (!file_exists($filename)) {
+        //Combines file exists and modification time in one call to prevent race conditions
+        $filemtime = @filemtime($filename);
+
+        if ($filemtime === false) {
             return false;
         }
 
-        if (time() - filemtime($filename) > $expire_timespan) {
+        if (time() - $filemtime > $expire_timespan) {
             return false;
         }
 
@@ -300,6 +303,10 @@ class WCache
     {
         $data = $this->__load_cache($keypath, $time);
 
+        if($data !== false) {
+            $data = $this->__pack_data($data);
+        }
+
         //no cache available
         if ($data === false) {
             //push it to stack
@@ -308,14 +315,13 @@ class WCache
             return count($this->stack);
         }
 
-        $data = $this->__pack_data($data);
-
         return $data;
     }
 
     function __pack_data($data)
     {
-        return unserialize($data);
+        //Suppress E_NOTICE in case unserialize fails - it will then return false
+        return @unserialize($data);
     }
 
     function __unpack_data($data)
@@ -385,34 +391,36 @@ class WCache
             }
 
             $fs = @scandir($dir);
-            foreach ($fs as $f) {
-                if (in_array($f, array(
-                    ".",
-                    ".."
-                ))) {
-                    continue;
-                }
+            if ($fs !== false) {
+                foreach ($fs as $f) {
+                    if (in_array($f, array(
+                        ".",
+                        ".."
+                    ))) {
+                        continue;
+                    }
 
-                $fn = $dir . $f;
-                if (!is_readable($fn)) {
-                    continue;
-                }
+                    $fn = $dir . $f;
+                    if (!is_readable($fn)) {
+                        continue;
+                    }
 
-                if (is_file($fn)) {
-                    if ($expire_timespan > 0) {
-                        $ts = time() - filemtime($fn);
-                        if ($ts < $expire_timespan) {
-                            continue;
+                    if (is_file($fn)) {
+                        if ($expire_timespan > 0) {
+                            $ts = time() - filemtime($fn);
+                            if ($ts < $expire_timespan) {
+                                continue;
+                            }
                         }
-                    }
 
-                    if ($expire_timespan >= 0) {
-                        @unlink($fn);
-                    }
+                        if ($expire_timespan >= 0) {
+                            @unlink($fn);
+                        }
 
-                    $n++;
-                } elseif (is_dir($fn)) {
-                    array_push($dirstack, $fn);
+                        $n++;
+                    } elseif (is_dir($fn)) {
+                        array_push($dirstack, $fn);
+                    }
                 }
             }
             if ($expire_timespan == 0) {
