@@ -22,7 +22,7 @@ class WCache
      * @param string $disable_output
      *            disable track the output(ob_start) or not
      */
-    function WCache($cache_dir, $disable = false, $disable_output = false)
+    function __construct($cache_dir, $disable = false, $disable_output = false)
     {
         if (function_exists("version_compare")) {
             $this->surephp5 = version_compare(PHP_VERSION, '5.0.0', '>=');

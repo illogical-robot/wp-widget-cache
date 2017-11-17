@@ -38,7 +38,7 @@ class WidgetCache
 
     var $varyParams = array();
 
-    function WidgetCache()
+    function __construct()
     {
         $this->cachedir = WP_CONTENT_DIR . '/widget-cache';
 
