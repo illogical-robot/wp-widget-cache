@@ -59,107 +59,105 @@ class WidgetCache
             ));
         } else {
             
-            add_action('init', function(){
-                $this->__wgc_load_opts();
+            $this->__wgc_load_opts();
+
+            if ($this->wgcEnabled) {
+                if ($this->wgcAutoExpireEnabled) {
+                    $this->triggerActions = array(
+                        "category" => array(
+                            "add_category",
+                            "create_category",
+                            "edit_category",
+                            "delete_category"
+                        ),
+                        "comment" => array(
+                            "comment_post",
+                            "edit_comment",
+                            "delete_comment",
+                            "pingback_post",
+                            "trackback_post",
+                            "wp_set_comment_status"
+                        ),
+                        "link" => array(
+                            "add_link",
+                            "edit_link",
+                            "delete_link"
+                        ),
+                        "post" => array(
+                            "publish_post",
+                            "publish_to_draft",
+                            "publish_to_pending",
+                            "publish_to_trash",
+                            "publish_to_future"
+                        ),
+                        "tag" => array(
+                            "create_term",
+                            "edit_term",
+                            "delete_term"
+                        )
+                    );
+                }
+                if ($this->wgcVaryParamsEnabled) {
+                    $this->varyParams = array(
+                        "userLevel" => array(
+                            &$this,
+                            'get_user_level'
+                        ),
+                        "userLoggedIn" => array(
+                            &$this,
+                            'get_is_user_logged_in'
+                        ),
+                        "userAgent" => array(
+                            &$this,
+                            'get_user_agent'
+                        ),
+                        "currentCategory" => array(
+                            &$this,
+                            'get_current_category'
+                        ),
+                        "amp" => array(
+                            &$this,
+                            'get_amp_vary_param'
+                        )
+                    );
+                }
+                add_action('wp_head', array(
+                    &$this,
+                    'widget_cache_redirect_callback'
+                ), 99999);
+            }
+
+            if (is_admin()) {
+                add_action('admin_menu', array(
+                    &$this,
+                    'wp_add_options_page'
+                ));
+                add_action('dashmenu', array(
+                    &$this,
+                    'dashboard_delete_wg_cache'
+                ));
 
                 if ($this->wgcEnabled) {
-                    if ($this->wgcAutoExpireEnabled) {
-                        $this->triggerActions = array(
-                            "category" => array(
-                                "add_category",
-                                "create_category",
-                                "edit_category",
-                                "delete_category"
-                            ),
-                            "comment" => array(
-                                "comment_post",
-                                "edit_comment",
-                                "delete_comment",
-                                "pingback_post",
-                                "trackback_post",
-                                "wp_set_comment_status"
-                            ),
-                            "link" => array(
-                                "add_link",
-                                "edit_link",
-                                "delete_link"
-                            ),
-                            "post" => array(
-                                "publish_post",
-                                "publish_to_draft",
-                                "publish_to_pending",
-                                "publish_to_trash",
-                                "publish_to_future"
-                            ),
-                            "tag" => array(
-                                "create_term",
-                                "edit_term",
-                                "delete_term"
-                            )
-                        );
-                    }
-                    if ($this->wgcVaryParamsEnabled) {
-                        $this->varyParams = array(
-                            "userLevel" => array(
-                                &$this,
-                                'get_user_level'
-                            ),
-                            "userLoggedIn" => array(
-                                &$this,
-                                'get_is_user_logged_in'
-                            ),
-                            "userAgent" => array(
-                                &$this,
-                                'get_user_agent'
-                            ),
-                            "currentCategory" => array(
-                                &$this,
-                                'get_current_category'
-                            ),
-                            "amp" => array(
-                                &$this,
-                                'get_amp_vary_param'
-                            )
-                        );
-                    }
-                    add_action('wp_head', array(
-                        &$this,
-                        'widget_cache_redirect_callback'
-                    ), 99999);
-                }
-
-                if (is_admin()) {
-                    add_action('admin_menu', array(
-                        &$this,
-                        'wp_add_options_page'
-                    ));
-                    add_action('dashmenu', array(
-                        &$this,
-                        'dashboard_delete_wg_cache'
-                    ));
-
-                    if ($this->wgcEnabled) {
-                        add_action('sidebar_admin_page',
-                            array(
-                                &$this,
-                                'widget_cache_options_filter'
-                            ));
-                    }
-
-                    add_action('sidebar_admin_setup',
+                    add_action('sidebar_admin_page',
                         array(
                             &$this,
-                            'widget_cache_expand_control'
+                            'widget_cache_options_filter'
                         ));
-
-                    if (isset ($_GET ["wgdel"])) {
-                        add_action('admin_notices', array(
-                            &$this,
-                            'widget_wgdel_notice'
-                        ));
-                    }
                 }
-            });
+
+                add_action('sidebar_admin_setup',
+                    array(
+                        &$this,
+                        'widget_cache_expand_control'
+                    ));
+
+                if (isset ($_GET ["wgdel"])) {
+                    add_action('admin_notices', array(
+                        &$this,
+                        'widget_wgdel_notice'
+                    ));
+                }
+            }
         }
     }
 
@@ -681,8 +679,6 @@ class WidgetCache
 
 }
 
-$widget_cache = new WidgetCache ();
-
 function widget_cache_remove($id)
 {
     global $widget_cache;
@@ -709,6 +705,10 @@ function widget_cache_hook_trigger()
     }
 }
 
-if ($widget_cache->wgcAutoExpireEnabled) {
-    widget_cache_hook_trigger();
-}
+add_action('init', function(){
+    global $widget_cache;
+    $widget_cache = new WidgetCache ();
+    if ($widget_cache->wgcAutoExpireEnabled) {
+        widget_cache_hook_trigger();
+    }
+});
