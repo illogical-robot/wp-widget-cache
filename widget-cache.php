@@ -565,8 +565,11 @@ class WidgetCache
         }
     }
 
-    function get_user_level()
+    function get_user_level($all = false)
     {
+        if($all){
+            return [10,7,2,1,0];
+        }
         $current_user = wp_get_current_user();
         if (in_array('administrator', $current_user->roles)) {
             return 10;
@@ -587,25 +590,37 @@ class WidgetCache
         return false;
     }
 
-    function get_is_user_logged_in()
+    function get_is_user_logged_in($all = false)
     {
+        if($all){
+            return ['logged', 'not_logged'];
+        }
         return (is_user_logged_in() ? 'logged' : 'not_logged');
     }
 
-    function get_user_agent()
+    function get_user_agent($all = false)
     {
+        if($all){
+            return false;
+        }
         return $_SERVER ['HTTP_USER_AGENT'];
     }
 
-    function get_amp_vary_param(){
+    function get_amp_vary_param($all = false){
+        if($all){
+            return ['amp', 'non-amp'];
+        }
         if(function_exists('is_amp_endpoint') && is_amp_endpoint()){
             return 'amp';
         } else {
             return 'non-amp';
         }
     }
-    function get_current_category()
+    function get_current_category($all = false)
     {
+        if($all){
+            return false;
+        }
         if (is_single()) {
             global $post;
             $categories = get_the_category($post->ID);
@@ -639,6 +654,29 @@ class WidgetCache
         }
 
         return $wckey;
+    }
+
+    function get_all_widget_cache_keys($id)
+    {
+        $wckey = "wgcache_" . $id;
+        $wckeys = [];
+
+        if ($this->wgcVaryParamsEnabled && isset ($this->wgcVaryParams [$id])) {
+            foreach ($this->wgcVaryParams [$id] as $vparam) {
+                if ($this->varyParams [$vparam]) {
+                    if (is_callable($this->varyParams [$vparam])) {
+                        $temvs = call_user_func($this->varyParams [$vparam], true);
+                        if (is_array($temvs)) {
+                            foreach($temvs as $temv){
+                                $wckeys[] = $wckey . "_" . $temv;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return $wckeys;
     }
 
     function widget_cache_redirected_callback()
