@@ -4,7 +4,7 @@ Plugin Name:WP Widget Cache
 Plugin URI: https://github.com/rooseve/wp-widget-cache
 Description: Cache the output of your blog widgets. Usually it will significantly reduce the sql queries to your database and speed up your site.
 Author: Andrew Zhang
-Version: 0.26.8
+Version: 0.26.9
 Author URI: https://github.com/rooseve/wp-widget-cache
 */
 require_once(dirname(__FILE__) . "/inc/wcache.class.php");
@@ -14,7 +14,7 @@ class WidgetCache
 
     var $plugin_name = 'WP Widget Cache';
 
-    var $plugin_version = '0.26.8';
+    var $plugin_version = '0.26.9';
 
     var $wcache;
 
@@ -715,8 +715,19 @@ class WidgetCache
 
             echo "<!--Cache $id for $expire_ts second(s)-->\n";
 
+            $time_start = microtime(true);
             while ($this->wcache->save($this->get_widget_cache_key($id), $expire_ts, null, $id)) {
                 call_user_func_array($callback, $params);
+            }
+            if (is_user_logged_in()) {
+                ?>
+                    <script>
+                        var widget_rendering_time = document.createElement("span");
+                        widget_rendering_time.style = "padding-left: 10px;padding-right: 10px;display: block;white-space: nowrap;text-align: right;font-size: 11px;color: #666";
+                        widget_rendering_time.textContent = "Rendering time: <?php echo number_format((microtime(true) - $time_start), 5); ?>s";
+                        document.getElementById("<?php echo $id; ?>").appendChild(widget_rendering_time);
+                    </script>
+                <?php
             }
 
             echo "<!--$this->plugin_name End -->\n";
