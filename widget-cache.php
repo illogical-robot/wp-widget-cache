@@ -555,7 +555,7 @@ class WidgetCache
     function widget_cache_redirect_callback()
     {
         global $wp_registered_widgets;
-        if (is_user_logged_in()) {
+        if (is_user_logged_in() && current_user_can('manage_options')) {
             echo '<style>.render-time{padding-left: 10px;padding-right: 10px;display: block;text-align: right;font-size: 11px;color: #666}</style>';
         }
         foreach ($wp_registered_widgets as $id => $widget) {
@@ -733,20 +733,22 @@ class WidgetCache
                 $widget_rendering_time['widget-' . $id]['start'] = $time_start;
                 $widget_rendering_time['widget-' . $id]['stop'] = $time_stop;
                 $widget_rendering_time['widget-' . $id]['took'] = $time_took;
-                ?>
-                    <script>
-                        window.widget_rendering_time = window.widget_rendering_time || [];
-                        var widget_rendering_time_current_widget = {
-                            id: "<?php echo $id; ?>",
-                            time: "<?php echo $time_took; ?>"
-                        };
-                        widget_rendering_time.push(widget_rendering_time_current_widget);
-                        var widget_rendering_time_container = document.createElement("div");
-                        widget_rendering_time_container.className = "render-time";
-                        widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s";
-                        document.getElementById(widget_rendering_time_current_widget.id).appendChild(widget_rendering_time_container);
-                    </script>
-                <?php
+                if (current_user_can('manage_options')) {
+                    ?>
+                        <script>
+                            window.widget_rendering_time = window.widget_rendering_time || [];
+                            var widget_rendering_time_current_widget = {
+                                id: "<?php echo $id; ?>",
+                                time: "<?php echo $time_took; ?>"
+                            };
+                            widget_rendering_time.push(widget_rendering_time_current_widget);
+                            var widget_rendering_time_container = document.createElement("div");
+                            widget_rendering_time_container.className = "render-time";
+                            widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s";
+                            document.getElementById(widget_rendering_time_current_widget.id).appendChild(widget_rendering_time_container);
+                        </script>
+                    <?php
+                }
             }
 
             echo "<!--$this->plugin_name End -->\n";
