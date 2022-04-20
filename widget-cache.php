@@ -4,7 +4,7 @@ Plugin Name:WP Widget Cache
 Plugin URI: https://github.com/rooseve/wp-widget-cache
 Description: Cache the output of your blog widgets. Usually it will significantly reduce the sql queries to your database and speed up your site.
 Author: Andrew Zhang
-Version: 0.26.9
+Version: 0.26.10
 Author URI: https://github.com/rooseve/wp-widget-cache
 */
 require_once(dirname(__FILE__) . "/inc/wcache.class.php");
@@ -14,7 +14,7 @@ class WidgetCache
 
     var $plugin_name = 'WP Widget Cache';
 
-    var $plugin_version = '0.26.9';
+    var $plugin_version = '0.26.10';
 
     var $wcache;
 
@@ -38,7 +38,7 @@ class WidgetCache
 
     var $varyParams = array();
 
-    function __construct()
+    public function __construct()
     {
         $this->cachedir = WP_CONTENT_DIR . '/widget-cache';
 
@@ -100,26 +100,27 @@ class WidgetCache
                 if ($this->wgcVaryParamsEnabled) {
                     $this->varyParams = array(
                         "userLevel" => array(
-                            &$this,
+                            'WidgetCache',
                             'get_user_level'
                         ),
                         "userLoggedIn" => array(
-                            &$this,
+                            'WidgetCache',
                             'get_is_user_logged_in'
                         ),
                         "userAgent" => array(
-                            &$this,
+                            'WidgetCache',
                             'get_user_agent'
                         ),
                         "currentCategory" => array(
-                            &$this,
+                            'WidgetCache',
                             'get_current_category'
                         ),
                         "amp" => array(
-                            &$this,
+                            'WidgetCache',
                             'get_amp_vary_param'
                         )
                     );
+                    $this->varyParams = apply_filters('wgc_vary_params', $this->varyParams);
                 }
                 add_action('wp_head', array(
                     &$this,
@@ -131,10 +132,6 @@ class WidgetCache
                 add_action('admin_menu', array(
                     &$this,
                     'wp_add_options_page'
-                ));
-                add_action('dashmenu', array(
-                    &$this,
-                    'dashboard_delete_wg_cache'
                 ));
 
                 if ($this->wgcEnabled) {
@@ -161,19 +158,7 @@ class WidgetCache
         }
     }
 
-    function dashboard_delete_wg_cache()
-    {
-        if (function_exists('is_site_admin') && !is_site_admin()) {
-            return false;
-        }
-        if (function_exists('current_user_can') && !current_user_can('manage_options')) {
-            return false;
-        }
-        echo "<li><a href='" . wp_nonce_url('options-general.php?page=widget-cache.php&clear=1', 'widget-cache') .
-            "' title='Clear widget cache'>Clear widget cache</a></li>";
-    }
-
-    function wgc_get_option($key, $default = array())
+    private function wgc_get_option($key, $default = array())
     {
         $ops = get_option($key);
 
@@ -190,12 +175,12 @@ class WidgetCache
         return $ops;
     }
 
-    function array_element($array, $ele)
+    private function array_element($array, $ele)
     {
         return isset ($array [$ele]) ? $array [$ele] : false;
     }
 
-    function __wgc_load_opts()
+    private function __wgc_load_opts()
     {
         $this->wgcSettings = $this->wgc_get_option("widget_cache_settings",
             array(
@@ -219,19 +204,19 @@ class WidgetCache
         $this->wgcVaryParamsEnabled = $this->wgcSettings ["wgc_vary_by_params_enabled"] == "1";
     }
 
-    function wgc_update_option($key, $value)
+    private function wgc_update_option($key, $value)
     {
         update_option($key, $value);
     }
 
-    function wp_load_default_settings()
+    private function wp_load_default_settings()
     {
         $wgc_ops = array();
         $this->wgc_update_option('widget_cache_settings', $wgc_ops);
         return $wgc_ops;
     }
 
-    function wp_add_options_page()
+    public function wp_add_options_page()
     {
         if (function_exists('add_options_page')) {
             add_options_page($this->plugin_name, $this->plugin_name, 'manage_options', basename(__FILE__),
@@ -242,7 +227,7 @@ class WidgetCache
         }
     }
 
-    function wp_options_subpanel()
+    public function wp_options_subpanel()
     {
         if (isset ($_POST ["widget_cache-clear"]) || isset ($_GET ['clear']) && $_GET ['clear'] == "1") {
             $this->wcache->clear();
@@ -313,7 +298,7 @@ class WidgetCache
         <?php
     }
 
-    function widget_cache_warning()
+    public function widget_cache_warning()
     {
         $pdir = WP_CONTENT_DIR . '/';
 
@@ -326,16 +311,15 @@ class WidgetCache
         echo "<div id='widget-cache-warning' class='updated fade'><p><strong>WP Widget Cache not work!</strong><br/>$wmsg</p></div>";
     }
 
-    function widget_wgdel_notice()
+    public function widget_wgdel_notice()
     {
         $id = $_GET ["wgdel"];
         $this->wcache->remove_group($id);
         echo '<div id="widget-cache-notice" class="updated fade"><p>Delete widget cache: ' . esc_html($id) . '</p></div>';
     }
 
-    function widget_cache_options_filter()
+    public function widget_cache_options_filter()
     {
-        $wl_options = $this->wgcOptions;
         ?>
         <div class="wrap">
             <form method="POST">
@@ -352,7 +336,7 @@ class WidgetCache
         <?php
     }
 
-    function widget_cache_expand_control()
+    public function widget_cache_expand_control()
     {
         global $wp_registered_widgets, $wp_registered_widget_controls;
 
@@ -442,11 +426,11 @@ class WidgetCache
         }
     }
 
-    function widget_cache_empty_control()
+    public function widget_cache_empty_control()
     {
     }
 
-    function widget_cache_extra_control()
+    public function widget_cache_extra_control()
     {
         global $wp_registered_widget_controls;
         $params = func_get_args();
@@ -488,7 +472,7 @@ class WidgetCache
         }
     }
 
-    function output_widget_options_panel($id_disp, $expire_ts)
+    private function output_widget_options_panel($id_disp, $expire_ts)
     {
         ?>
         <fieldset
@@ -552,7 +536,7 @@ class WidgetCache
         <?php
     }
 
-    function widget_cache_redirect_callback()
+    public function widget_cache_redirect_callback()
     {
         global $wp_registered_widgets;
         if (is_user_logged_in() && current_user_can('manage_options')) {
@@ -568,7 +552,7 @@ class WidgetCache
         }
     }
 
-    function get_user_level($all = false)
+    private static function get_user_level($all = false)
     {
         if($all){
             return [10,7,2,1,0];
@@ -593,7 +577,7 @@ class WidgetCache
         return false;
     }
 
-    function get_is_user_logged_in($all = false)
+    public static function get_is_user_logged_in($all = false)
     {
         if($all){
             return ['logged', 'not_logged'];
@@ -601,7 +585,7 @@ class WidgetCache
         return (is_user_logged_in() ? 'logged' : 'not_logged');
     }
 
-    function get_user_agent($all = false)
+    public static function get_user_agent($all = false)
     {
         if($all){
             return false;
@@ -609,7 +593,7 @@ class WidgetCache
         return $_SERVER ['HTTP_USER_AGENT'];
     }
 
-    function get_amp_vary_param($all = false){
+    public static function get_amp_vary_param($all = false){
         if($all){
             return ['amp', 'non-amp'];
         }
@@ -619,7 +603,7 @@ class WidgetCache
             return 'non-amp';
         }
     }
-    function get_current_category($all = false)
+    public static function get_current_category($all = false)
     {
         if($all){
             return false;
@@ -639,7 +623,7 @@ class WidgetCache
         return false;
     }
 
-    function get_widget_cache_key($id)
+    public function get_widget_cache_key($id)
     {
         $wckey = "wgcache_" . $id;
 
@@ -666,7 +650,7 @@ class WidgetCache
      *
      * @return  array        Array of cache keys with vary params.
      */
-    function get_all_widget_cache_keys($id)
+    public function get_all_widget_cache_keys($id)
     {
         $wckey = "wgcache_" . $id;
         $wckeys = [];
@@ -692,7 +676,7 @@ class WidgetCache
         return $wckeys;
     }
 
-    function widget_cache_redirected_callback()
+    public function widget_cache_redirected_callback()
     {
         global $wp_registered_widgets;
 
