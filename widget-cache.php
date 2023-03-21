@@ -729,7 +729,10 @@ class WidgetCache
                             var widget_rendering_time_container = document.createElement("div");
                             widget_rendering_time_container.className = "render-time";
                             widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s";
-                            document.getElementById(widget_rendering_time_current_widget.id).appendChild(widget_rendering_time_container);
+                            var widget_container = document.getElementById(widget_rendering_time_current_widget.id) || (document.currentScript && document.currentScript.previousElementSibling) || false;
+                            if (widget_container) {
+                                widget_container.appendChild(widget_rendering_time_container);
+                            }
                         </script>
                     <?php
                 }
