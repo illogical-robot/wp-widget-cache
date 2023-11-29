@@ -4,7 +4,7 @@ Plugin Name:WP Widget Cache
 Plugin URI: https://github.com/rooseve/wp-widget-cache
 Description: Cache the output of your blog widgets. Usually it will significantly reduce the sql queries to your database and speed up your site.
 Author: Andrew Zhang
-Version: 0.26.10
+Version: 0.26.11
 Author URI: https://github.com/rooseve/wp-widget-cache
 */
 require_once(dirname(__FILE__) . "/inc/wcache.class.php");
@@ -12,31 +12,31 @@ require_once(dirname(__FILE__) . "/inc/wcache.class.php");
 class WidgetCache
 {
 
-    var $plugin_name = 'WP Widget Cache';
+    public $plugin_name = 'WP Widget Cache';
 
-    var $plugin_version = '0.26.10';
+    public $plugin_version = '0.26.11';
 
-    var $wcache;
+    public $wcache;
 
-    var $cachedir;
+    public $cachedir;
 
-    var $wgcOptions;
+    public $wgcOptions;
 
-    var $wgcTriggers;
+    public $wgcTriggers;
 
-    var $wgcSettings;
+    public $wgcSettings;
 
-    var $wgcVaryParams;
+    public $wgcVaryParams;
 
-    var $wgcEnabled = true;
+    public $wgcEnabled = true;
 
-    var $wgcAutoExpireEnabled = true;
+    public $wgcAutoExpireEnabled = true;
 
-    var $wgcVaryParamsEnabled = false;
+    public $wgcVaryParamsEnabled = false;
 
-    var $triggerActions = array();
+    public $triggerActions = array();
 
-    var $varyParams = array();
+    public $varyParams = array();
 
     public function __construct()
     {
@@ -46,6 +46,8 @@ class WidgetCache
 
         $shost = $this->array_element($url_info, 'host');
         $spath = $this->array_element($url_info, 'path');
+
+        $shost = apply_filters('wgc_cache_host', $shost);
 
         //maybe got many blogs under the same source
         $this->cachedir .= '/' . $shost . ($spath ? '_' . md5($spath) : '');
@@ -676,6 +678,67 @@ class WidgetCache
         return $wckeys;
     }
 
+    public function widget_cache_save($id, $callback, $params, $output = true)
+    {
+        $wc_options = $this->wgcOptions;
+
+        $expire_ts = isset ($wc_options [$id]) ? intval($wc_options [$id]) : -1;
+
+        if ($expire_ts > 0) {
+            if ($output) {
+                echo "<!--$this->plugin_name $this->plugin_version Begin -->\n";
+                
+                echo "<!--Cache $id for $expire_ts second(s)-->\n";
+            } else {
+                $this->wcache->disable_output = true;
+            }
+
+            if (is_user_logged_in()) {
+                $time_start = microtime(true);
+            }
+            while ($this->wcache->save($this->get_widget_cache_key($id), $expire_ts, null, $id)) {
+                call_user_func_array($callback, $params);
+            }
+            if ($output) {
+                if (is_user_logged_in()) {
+                    global $widget_rendering_time;
+                    $widget_rendering_time = $widget_rendering_time ?? [];
+                    $time_stop =  microtime(true);
+                    $time_took =  number_format(($time_stop - $time_start), 5);
+
+                    $widget_rendering_time['widget-' . $id]['start'] = $time_start;
+                    $widget_rendering_time['widget-' . $id]['stop'] = $time_stop;
+                    $widget_rendering_time['widget-' . $id]['took'] = $time_took;
+                    if (current_user_can('manage_options')) {
+                        ?>
+                            <script>
+                                window.widget_rendering_time = window.widget_rendering_time || [];
+                                var widget_rendering_time_current_widget = {
+                                    id: "<?php echo $id; ?>",
+                                    time: "<?php echo $time_took; ?>"
+                                };
+                                widget_rendering_time.push(widget_rendering_time_current_widget);
+                                var widget_rendering_time_container = document.createElement("div");
+                                widget_rendering_time_container.className = "render-time";
+                                widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s";
+                                var widget_container = document.getElementById(widget_rendering_time_current_widget.id) || (document.currentScript && document.currentScript.previousElementSibling) || false;
+                                if (widget_container) {
+                                    widget_container.appendChild(widget_rendering_time_container);
+                                }
+                            </script>
+                        <?php
+                    }
+                }
+
+                echo "<!--$this->plugin_name End -->\n";
+            }
+        } else {
+            if ($output) {
+                call_user_func_array($callback, $params);
+            }
+        }
+        $this->wcache->disable_output = false;
+    }
     public function widget_cache_redirected_callback()
     {
         global $wp_registered_widgets;
@@ -693,76 +756,29 @@ class WidgetCache
             return;
         }
 
-        $wc_options = $this->wgcOptions;
+        $this->widget_cache_save($id, $callback, $params);
 
-        $expire_ts = isset ($wc_options [$id]) ? intval($wc_options [$id]) : -1;
-
-        if ($expire_ts > 0) {
-            echo "<!--$this->plugin_name $this->plugin_version Begin -->\n";
-
-            echo "<!--Cache $id for $expire_ts second(s)-->\n";
-
-            if (is_user_logged_in()) {
-                $time_start = microtime(true);
-            }
-            while ($this->wcache->save($this->get_widget_cache_key($id), $expire_ts, null, $id)) {
-                call_user_func_array($callback, $params);
-            }
-            if (is_user_logged_in()) {
-                global $widget_rendering_time;
-                $widget_rendering_time = $widget_rendering_time ?? [];
-                $time_stop =  microtime(true);
-                $time_took =  number_format(($time_stop - $time_start), 5);
-
-                $widget_rendering_time['widget-' . $id]['start'] = $time_start;
-                $widget_rendering_time['widget-' . $id]['stop'] = $time_stop;
-                $widget_rendering_time['widget-' . $id]['took'] = $time_took;
-                if (current_user_can('manage_options')) {
-                    ?>
-                        <script>
-                            window.widget_rendering_time = window.widget_rendering_time || [];
-                            var widget_rendering_time_current_widget = {
-                                id: "<?php echo $id; ?>",
-                                time: "<?php echo $time_took; ?>"
-                            };
-                            widget_rendering_time.push(widget_rendering_time_current_widget);
-                            var widget_rendering_time_container = document.createElement("div");
-                            widget_rendering_time_container.className = "render-time";
-                            widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s";
-                            var widget_container = document.getElementById(widget_rendering_time_current_widget.id) || (document.currentScript && document.currentScript.previousElementSibling) || false;
-                            if (widget_container) {
-                                widget_container.appendChild(widget_rendering_time_container);
-                            }
-                        </script>
-                    <?php
-                }
-            }
-
-            echo "<!--$this->plugin_name End -->\n";
-        } else {
-            call_user_func_array($callback, $params);
-        }
     }
 
 }
 
-function widget_cache_remove($id)
+function widget_cache_remove($id, $widget_cache)
 {
-    global $widget_cache;
     $widget_cache->wcache->remove_group($id);
 }
 
-function widget_cache_hook_trigger()
+function widget_cache_hook_trigger($widget_cache)
 {
-    global $widget_cache;
     if (isset ($widget_cache->wgcTriggers) && $widget_cache->wgcTriggers) {
         foreach ($widget_cache->wgcTriggers as $wgid => $wgacts) {
             foreach ($wgacts as $wact) {
                 if (isset ($widget_cache->triggerActions [$wact])) {
                     foreach ($widget_cache->triggerActions [$wact] as $wpaction) {
                         add_action($wpaction,
-                            function() use ($wgid) {
-                                widget_cache_remove((string)addslashes($wgid));
+                            function() use ($wgid, $widget_cache) {
+                                if (!apply_filters('wgc_cache_remove', false, (string) addslashes($wgid), $widget_cache) ){
+                                    widget_cache_remove($wgid, $widget_cache);
+                                }
                             },
                             10, 1);
                     }
@@ -773,9 +789,8 @@ function widget_cache_hook_trigger()
 }
 
 add_action('init', function(){
-    global $widget_cache;
-    $widget_cache = new WidgetCache ();
+    $widget_cache = new WidgetCache();
     if ($widget_cache->wgcAutoExpireEnabled) {
-        widget_cache_hook_trigger();
+        widget_cache_hook_trigger($widget_cache);
     }
 });

@@ -3,16 +3,18 @@
 class WCache
 {
 
-    var $dir_mode = 0755;
+    public $dir_mode = 0755;
 
-    var $surephp5 = false;
+    private $fld_version = '__wgc_v';
 
-    var $fld_version = '__wgc_v';
+    private $fld_output = 'output';
 
-    var $fld_output = 'output';
+    private $fld_data = 'data';
 
-    var $fld_data = 'data';
-
+    private $path = null;
+    private $disable = false;
+    public $disable_output = false;
+    private $stack = [];
     /**
      *
      * @param string $path ,
@@ -24,12 +26,8 @@ class WCache
      */
     function __construct($cache_dir, $disable = false, $disable_output = false)
     {
-        if (function_exists("version_compare")) {
-            $this->surephp5 = version_compare(PHP_VERSION, '5.0.0', '>=');
-        }
-
         //make cache dir
-        if (!is_dir($cache_dir)) {
+        if (!$disable && !is_dir($cache_dir)) {
             $this->__do_mkdir($cache_dir, $this->dir_mode);
             $disable = !is_dir($cache_dir);
         }
@@ -44,16 +42,13 @@ class WCache
         if (!in_array(substr($cache_dir, -1), array(
             "\\",
             "/"
-        ))
-        ) {
+        ))) {
             $cache_dir .= "/";
         }
 
         $this->path = $cache_dir;
         $this->disable = $disable;
         $this->disable_output = $disable_output;
-        $this->stack = array();
-        $this->output = null;
     }
 
     /**
@@ -91,31 +86,29 @@ class WCache
         $expire_timespan = max(3, intval($expire_timespan));
 
         //here the real data created
-        if (count($this->stack) && $keypath == $this->stack [count($this->stack) - 1]) {
+        if (count($this->stack) && $keypath == $this->stack[count($this->stack) - 1]) {
             $ob_output = false;
 
-            if (!$this->disable_output) {
-                $ob_output = ob_get_contents();
-                ob_end_clean();
-
-                $this->__echo_output($ob_output);
-            }
+            $ob_output = ob_get_contents();
+            ob_end_clean();
+            $this->__echo_output($ob_output);
 
             //create a cache pack
             $cpack = array();
-            $cpack [$this->fld_version] = 2;
-            $cpack [$this->fld_output] = $ob_output;
-            $cpack [$this->fld_data] = $cdata;
+            $cpack[$this->fld_version] = 2;
+            $cpack[$this->fld_output] = $ob_output;
+            $cpack[$this->fld_data] = $cdata;
 
             $this->__save_cache($keypath, $cpack);
 
-            unset ($this->stack [count($this->stack) - 1]);
+            unset($this->stack[count($this->stack) - 1]);
 
             return false;
         } elseif (count($this->stack) && in_array($keypath, $this->stack)) {
             trigger_error(
-                "Cache stack problem: " . $this->stack [count($this->stack) - 1] . " not properly finished!",
-                E_USER_ERROR);
+                "Cache stack problem: " . $this->stack[count($this->stack) - 1] . " not properly finished!",
+                E_USER_ERROR
+            );
             return false;
         } else {
             $res = $this->__start_track($keypath, $expire_timespan);
@@ -130,29 +123,29 @@ class WCache
                 return $res;
             } else {
                 //old version cache data
-                if (!isset ($res [$this->fld_version])) {
-                    $res [$this->fld_version] = 1;
+                if (!isset($res[$this->fld_version])) {
+                    $res[$this->fld_version] = 1;
                 }
 
                 $res_output = false;
                 $res_cdata = array();
 
-                switch ($res [$this->fld_version]) {
-                    case 1 :
+                switch ($res[$this->fld_version]) {
+                    case 1:
 
-                        if (isset ($res ['__output__'])) {
-                            $res_output = $res ['__output__'];
-                            unset ($res ['__output__']);
+                        if (isset($res['__output__'])) {
+                            $res_output = $res['__output__'];
+                            unset($res['__output__']);
                         }
 
                         $res_cdata = $res;
 
                         break;
 
-                    default :
+                    default:
 
-                        $res_output = $res [$this->fld_output];
-                        $res_cdata = $res [$this->fld_data];
+                        $res_output = $res[$this->fld_output];
+                        $res_cdata = $res[$this->fld_data];
 
                         break;
                 }
@@ -162,7 +155,7 @@ class WCache
                 if (is_array($cdata)) {
                     //copy the cdata
                     foreach ($res_cdata as $k => $v) {
-                        $cdata [$k] = $res_cdata [$v];
+                        $cdata[$k] = $res_cdata[$v];
                     }
                 }
 
@@ -227,8 +220,6 @@ class WCache
 
     function __echo_output($output)
     {
-        $this->output = $output;
-
         if (!$this->disable_output) {
             echo $output;
         }
@@ -310,7 +301,7 @@ class WCache
         //no cache available
         if ($data === false) {
             //push it to stack
-            $this->stack [count($this->stack)] = $keypath;
+            $this->stack[count($this->stack)] = $keypath;
 
             return count($this->stack);
         }
@@ -359,20 +350,9 @@ class WCache
         return $key;
     }
 
-    function __mkdir_recursive($pathname, $mode)
-    {
-        is_dir(dirname($pathname)) || $this->__mkdir_recursive(dirname($pathname), $mode);
-
-        return is_dir($pathname) || @mkdir($pathname, $mode);
-    }
-
     function __do_mkdir($pathname, $mode)
     {
-        if ($this->surephp5) {
-            @mkdir($pathname, $mode, true);
-        } else {
-            $this->__mkdir_recursive($pathname, $mode);
-        }
+        @mkdir($pathname, $mode, true);
     }
 
     function __scan_dir($dir, $expire_timespan = 0)
@@ -385,8 +365,7 @@ class WCache
             if (!in_array(substr($dir, -1), array(
                 "\\",
                 "/"
-            ))
-            ) {
+            ))) {
                 $dir .= "/";
             }
 
@@ -430,5 +409,4 @@ class WCache
 
         return $n;
     }
-
 }
