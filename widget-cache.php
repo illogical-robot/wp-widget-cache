@@ -562,23 +562,24 @@ class WidgetCache
             return [10, 7, 2, 1, 0];
         }
         $current_user = wp_get_current_user();
-        if (in_array('administrator', $current_user->roles)) {
+        $roles = $current_user->roles ?? '';
+        if (in_array('administrator', $roles)) {
             return 10;
         }
-        if (in_array('editor', $current_user->roles)) {
+        if (in_array('editor', $roles)) {
             return 7;
         }
-        if (in_array('author', $current_user->roles)) {
+        if (in_array('author', $roles)) {
             return 2;
         }
-        if (in_array('contributor', $current_user->roles)) {
+        if (in_array('contributor', $roles)) {
             return 1;
         }
-        if (in_array('subscriber', $current_user->roles)) {
+        if (in_array('subscriber', $roles)) {
             return 0;
         }
 
-        return false;
+        return '-1';
     }
 
     public static function get_is_user_logged_in($all = false)
@@ -653,7 +654,7 @@ class WidgetCache
      *
      * @param   string  $id  
      *
-     * @return  array        Array of cache keys with vary params.
+     * @return  array   Array of cache keys with vary params.
      */
     public function get_all_widget_cache_keys($id)
     {
@@ -681,7 +682,7 @@ class WidgetCache
         return $wckeys;
     }
 
-    public function widget_cache_save($id, $callback, $params, $output = true)
+    public function widget_cache_save($id, $callback, $params, $output = true, $update = false)
     {
         $wc_options = $this->wgcOptions;
 
@@ -699,7 +700,7 @@ class WidgetCache
             if (is_user_logged_in()) {
                 $time_start = microtime(true);
             }
-            while ($this->wcache->save($this->get_widget_cache_key($id), $expire_ts, null, $id)) {
+            while ($this->wcache->save($this->get_widget_cache_key($id), $expire_ts, null, $id, $update)) {
                 call_user_func_array($callback, $params);
             }
             if ($output) {

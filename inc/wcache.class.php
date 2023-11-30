@@ -71,7 +71,7 @@ class WCache
      *            cache group, so you can remove all caches in some group
      * @return boolean
      */
-    public function save($key, $expire_timespan, $cdata = null, $group = false, $force = false)
+    public function save($key, $expire_timespan, $cdata = null, $group = false, $update = false)
     {
         if ($this->disable) {
             //nothing to do
@@ -107,8 +107,12 @@ class WCache
             );
             return false;
         } else {
-            $res = $this->__start_track($keypath, $expire_timespan);
-
+            if ($update) {
+                $this->stack[count($this->stack)] = $keypath;
+                $res = count($this->stack);
+            } else {
+                $res = $this->__start_track($keypath, $expire_timespan);
+            }
             //well no cache available
             if (is_int($res)) {
                 ob_start();
