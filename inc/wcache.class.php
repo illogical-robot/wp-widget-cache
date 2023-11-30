@@ -2,10 +2,7 @@
 
 class WCache
 {
-
     public $dir_mode = 0755;
-
-    private $fld_version = '__wgc_v';
 
     private $fld_output = 'output';
 
@@ -24,7 +21,7 @@ class WCache
      * @param string $disable_output
      *            disable track the output(ob_start) or not
      */
-    function __construct($cache_dir, $disable = false, $disable_output = false)
+    public function __construct($cache_dir, $disable = false, $disable_output = false)
     {
         //make cache dir
         if (!$disable && !is_dir($cache_dir)) {
@@ -74,7 +71,7 @@ class WCache
      *            cache group, so you can remove all caches in some group
      * @return boolean
      */
-    function save($key, $expire_timespan, $cdata = null, $group = false)
+    public function save($key, $expire_timespan, $cdata = null, $group = false, $force = false)
     {
         if ($this->disable) {
             //nothing to do
@@ -94,8 +91,7 @@ class WCache
             $this->__echo_output($ob_output);
 
             //create a cache pack
-            $cpack = array();
-            $cpack[$this->fld_version] = 2;
+            $cpack = [];
             $cpack[$this->fld_output] = $ob_output;
             $cpack[$this->fld_data] = $cdata;
 
@@ -115,41 +111,14 @@ class WCache
 
             //well no cache available
             if (is_int($res)) {
-                if (!$this->disable_output) {
-                    //track the output
-                    ob_start();
-                }
+                ob_start();
 
                 return $res;
             } else {
-                //old version cache data
-                if (!isset($res[$this->fld_version])) {
-                    $res[$this->fld_version] = 1;
-                }
-
                 $res_output = false;
-                $res_cdata = array();
 
-                switch ($res[$this->fld_version]) {
-                    case 1:
-
-                        if (isset($res['__output__'])) {
-                            $res_output = $res['__output__'];
-                            unset($res['__output__']);
-                        }
-
-                        $res_cdata = $res;
-
-                        break;
-
-                    default:
-
-                        $res_output = $res[$this->fld_output];
-                        $res_cdata = $res[$this->fld_data];
-
-                        break;
-                }
-
+                $res_output = $res[$this->fld_output];
+                $res_cdata = $res[$this->fld_data];
                 $this->__echo_output($res_output);
 
                 if (is_array($cdata)) {
@@ -170,7 +139,7 @@ class WCache
      * @param number $expire_timespan
      * @return number
      */
-    function clear($expire_timespan = 0)
+    public function clear($expire_timespan = 0)
     {
         return $this->__scan_dir($this->path, $expire_timespan);
     }
@@ -181,7 +150,7 @@ class WCache
      * @param string $key
      * @param string $group
      */
-    function remove($key, $group = false)
+    public function remove($key, $group = false)
     {
         if (!$key) {
             return;
@@ -197,7 +166,7 @@ class WCache
      *
      * @param string $group
      */
-    function remove_group($group)
+    public function remove_group($group)
     {
         if (!$group) {
             return;
@@ -213,19 +182,19 @@ class WCache
      *
      * @return number
      */
-    function cachecount()
+    public function cachecount()
     {
         return $this->__scan_dir($this->path, -100);
     }
 
-    function __echo_output($output)
+    private function __echo_output($output)
     {
         if (!$this->disable_output) {
             echo $output;
         }
     }
 
-    function __remove_cache($keypath)
+    private function __remove_cache($keypath)
     {
         $filename = $this->path . $keypath;
 
@@ -241,7 +210,7 @@ class WCache
         return false;
     }
 
-    function __save_cache($keypath, $data)
+    private function __save_cache($keypath, $data)
     {
         if ($this->disable) {
             return false;
@@ -268,7 +237,7 @@ class WCache
         return true;
     }
 
-    function __load_cache($keypath, $expire_timespan)
+    private function __load_cache($keypath, $expire_timespan)
     {
         if ($this->disable) {
             return false;
@@ -290,7 +259,7 @@ class WCache
         return @file_get_contents($filename);
     }
 
-    function __start_track($keypath, $time)
+    private function __start_track($keypath, $time)
     {
         $data = $this->__load_cache($keypath, $time);
 
@@ -309,23 +278,22 @@ class WCache
         return $data;
     }
 
-    function __pack_data($data)
+    private function __pack_data($data)
     {
-        //Suppress E_NOTICE in case unserialize fails - it will then return false
-        return @unserialize($data);
+        return maybe_unserialize($data);
     }
 
-    function __unpack_data($data)
+    private function __unpack_data($data)
     {
-        return serialize($data);
+        return maybe_serialize($data);
     }
 
-    function __encode_key($name)
+    private function __encode_key($name)
     {
         return md5($name);
     }
 
-    function __get_key_path($key, $group = false)
+    private function __get_key_path($key, $group = false)
     {
         if (!is_string($key)) {
             $key = serialize($key);
@@ -350,12 +318,12 @@ class WCache
         return $key;
     }
 
-    function __do_mkdir($pathname, $mode)
+    private function __do_mkdir($pathname, $mode)
     {
         @mkdir($pathname, $mode, true);
     }
 
-    function __scan_dir($dir, $expire_timespan = 0)
+    private function __scan_dir($dir, $expire_timespan = 0)
     {
         $n = 0;
         $dirstack = array();
