@@ -556,6 +556,7 @@ class WidgetCache
         }
 
         $this->widget_cache_save($instance, $widget_object, $args);
+        return false;
     }
 
     private static function get_user_level($all = false)
