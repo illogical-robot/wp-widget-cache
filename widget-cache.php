@@ -33,9 +33,9 @@ class WidgetCache
 
     public $wgcVaryParamsEnabled = false;
 
-    public $triggerActions = array();
+    public $triggerActions = [];
 
-    public $varyParams = array();
+    public $varyParams = [];
 
     public function __construct()
     {
@@ -128,10 +128,10 @@ class WidgetCache
                 );
                 $this->varyParams = apply_filters('wgc_vary_params', $this->varyParams);
             }
-            add_action('wp_head', array(
+            add_action('widget_display_callback', array(
                 &$this,
-                'widget_cache_redirect_callback'
-            ), PHP_INT_MAX);
+                'widget_display_callback'
+            ), PHP_INT_MAX, 3);
         }
         $this->admin_actions();
     }
@@ -540,20 +540,22 @@ class WidgetCache
         <?php
     }
 
-    public function widget_cache_redirect_callback()
+    public function widget_display_callback($instance, $widget_object, $args)
     {
-        global $wp_registered_widgets;
         if (is_user_logged_in() && current_user_can('manage_options')) {
             echo '<style>.render-time{padding-left: 10px;padding-right: 10px;display: block;text-align: right;font-size: 11px;color: #666}</style>';
         }
-        foreach ($wp_registered_widgets as $id => $widget) {
-            array_push($wp_registered_widgets[$id]['params'], $id);
-            $wp_registered_widgets[$id]['callback_wc_redirect'] = $wp_registered_widgets[$id]['callback'];
-            $wp_registered_widgets[$id]['callback'] = array(
-                &$this,
-                'widget_cache_redirected_callback'
-            );
+        $id = $widget_object->id;
+        $expire_ts = isset($this->wgcOptions[$id]) ? intval($this->wgcOptions[$id]) : -1;
+
+        if (!($expire_ts > 0)) {
+            return $instance;
         }
+        if (false === $instance || !is_subclass_of($widget_object, 'WP_Widget')) {
+            return $instance;
+        }
+
+        $this->widget_cache_save($instance, $widget_object, $args);
     }
 
     private static function get_user_level($all = false)
@@ -682,86 +684,63 @@ class WidgetCache
         return $wckeys;
     }
 
-    public function widget_cache_save($id, $callback, $params, $output = true, $update = false)
+    public function widget_cache_save($instance, $widget_object, $args, $output = true)
     {
-        $wc_options = $this->wgcOptions;
+        $id = $widget_object->id;
+        $update = apply_filters('wgc_force_update', false);
 
+        $wc_options = $this->wgcOptions;
         $expire_ts = isset($wc_options[$id]) ? intval($wc_options[$id]) : -1;
 
-        if ($expire_ts > 0) {
-            if ($output) {
-                echo "<!--$this->plugin_name $this->plugin_version Begin -->\n";
+        if ($output) {
+            echo "<!--$this->plugin_name $this->plugin_version Begin -->\n";
 
-                echo "<!--Cache $id for $expire_ts second(s)-->\n";
-            } else {
-                $this->wcache->disable_output = true;
-            }
-
-            if (is_user_logged_in()) {
-                $time_start = microtime(true);
-            }
-            while ($this->wcache->save($this->get_widget_cache_key($id), $expire_ts, null, $id, $update)) {
-                call_user_func_array($callback, $params);
-            }
-            if ($output) {
-                if (is_user_logged_in()) {
-                    global $widget_rendering_time;
-                    $widget_rendering_time = $widget_rendering_time ?? [];
-                    $time_stop =  microtime(true);
-                    $time_took =  number_format(($time_stop - $time_start), 5);
-
-                    $widget_rendering_time['widget-' . $id]['start'] = $time_start;
-                    $widget_rendering_time['widget-' . $id]['stop'] = $time_stop;
-                    $widget_rendering_time['widget-' . $id]['took'] = $time_took;
-                    if (current_user_can('manage_options')) {
-        ?>
-                        <script>
-                            window.widget_rendering_time = window.widget_rendering_time || [];
-                            var widget_rendering_time_current_widget = {
-                                id: "<?php echo $id; ?>",
-                                time: "<?php echo $time_took; ?>"
-                            };
-                            widget_rendering_time.push(widget_rendering_time_current_widget);
-                            var widget_rendering_time_container = document.createElement("div");
-                            widget_rendering_time_container.className = "render-time";
-                            widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s";
-                            var widget_container = document.getElementById(widget_rendering_time_current_widget.id) || (document.currentScript && document.currentScript.previousElementSibling) || false;
-                            if (widget_container) {
-                                widget_container.appendChild(widget_rendering_time_container);
-                            }
-                        </script>
-<?php
-                    }
-                }
-
-                echo "<!--$this->plugin_name End -->\n";
-            }
+            echo "<!--Cache $id for $expire_ts second(s)-->\n";
         } else {
-            if ($output) {
-                call_user_func_array($callback, $params);
+            $this->wcache->disable_output = true;
+        }
+
+        if (is_user_logged_in()) {
+            $time_start = microtime(true);
+        }
+        while ($this->wcache->save($this->get_widget_cache_key($id), $expire_ts, null, $id, $update)) {
+            $widget_object->widget($args, $instance);
+        }
+        if ($output) {
+            if (is_user_logged_in()) {
+                global $widget_rendering_time;
+                $widget_rendering_time = $widget_rendering_time ?? [];
+                $time_stop =  microtime(true);
+                $time_took =  number_format(($time_stop - $time_start), 5);
+
+                $widget_rendering_time['widget-' . $id]['start'] = $time_start;
+                $widget_rendering_time['widget-' . $id]['stop'] = $time_stop;
+                $widget_rendering_time['widget-' . $id]['took'] = $time_took;
+                if (current_user_can('manage_options')) {
+        ?>
+                    <script>
+                        window.widget_rendering_time = window.widget_rendering_time || [];
+                        var widget_rendering_time_current_widget = {
+                            id: "<?php echo $id; ?>",
+                            time: "<?php echo $time_took; ?>"
+                        };
+                        widget_rendering_time.push(widget_rendering_time_current_widget);
+                        var widget_rendering_time_container = document.createElement("div");
+                        widget_rendering_time_container.className = "render-time";
+                        widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s";
+                        var widget_container = document.getElementById(widget_rendering_time_current_widget.id) || (document.currentScript && document.currentScript.previousElementSibling) || false;
+                        if (widget_container) {
+                            widget_container.appendChild(widget_rendering_time_container);
+                        }
+                    </script>
+<?php
+                }
             }
+
+            echo "<!--$this->plugin_name End -->\n";
         }
+
         $this->wcache->disable_output = false;
-    }
-
-    public function widget_cache_redirected_callback()
-    {
-        global $wp_registered_widgets;
-
-        // get all the passed params
-        $params = func_get_args();
-
-        // take off the widget ID
-        $id = array_pop($params);
-
-        $callback = $wp_registered_widgets[$id]['callback_wc_redirect']; // find the real callback
-
-
-        if (!is_callable($callback)) {
-            return;
-        }
-
-        $this->widget_cache_save($id, $callback, $params);
     }
 }
 
@@ -791,7 +770,8 @@ function widget_cache_hook_trigger()
     }
 }
 
-function get_WidgetCache_instance() {
+function get_WidgetCache_instance()
+{
     static $widget_cache = false;
     if (!$widget_cache) {
         $widget_cache = new WidgetCache();
