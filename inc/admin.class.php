@@ -97,7 +97,10 @@ class WCache_Admin
 
                 foreach ((array)$_POST['widget-id'] as $widget_number => $widget_id) {
                     if (isset($_POST[$widget_id . '-wgc-expire'])) {
-                        $wc_options[$widget_id] = intval($_POST[$widget_id . '-wgc-expire']);
+                        $wc_options[$widget_id] = [
+                            'expire_ts' => intval($_POST[$widget_id . '-wgc-expire']),
+                            'sidebar_id' => esc_attr($_POST['sidebar'])
+                        ];
                     }
                     if ($this->WidgetCache->wgcAutoExpireEnabled) {
                         if (isset($_POST[$widget_id . '-wgc-trigger'])) {
@@ -161,9 +164,7 @@ class WCache_Admin
 
         if ($this->WidgetCache->wgcEnabled) // WP Widget Cache enabled
         {
-            $wc_options = $this->WidgetCache->wgcOptions;
-
-            $value = $this->WidgetCache->array_element($wc_options, $id);
+            $value = $this->WidgetCache->get_expire_ts($id);
 
             if (is_array($params[0]) && isset($params[0]['number'])) {
                 $number = $params[0]['number'];

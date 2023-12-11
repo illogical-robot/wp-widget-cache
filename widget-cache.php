@@ -8,6 +8,8 @@ Version: 0.26.12
 Author URI: https://github.com/rooseve/wp-widget-cache
 */
 
+use PhpParser\Node\Expr\Cast\Array_;
+
 class WidgetCache
 {
 
@@ -138,6 +140,10 @@ class WidgetCache
     }
 
 
+    public function get_expire_ts($id)
+    {
+        return (isset($this->wgcOptions[$id]) && isset($this->wgcOptions[$id]['expire_ts'])) ? intval($this->wgcOptions[$id]['expire_ts']) : -1;
+    }
     public function array_element($array, $ele)
     {
         return $array[$ele] ?? false;
@@ -185,6 +191,21 @@ class WidgetCache
         $this->wgcVaryParams = $this->wgc_get_option('widget_cache_vary_param');
 
         $this->wgcOptions = apply_filters('wc_options', $this->wgc_get_option('widget_cache'));
+        
+        // convert the old settings to support also the sidebar id
+        // @todo: delete it, once all options are updated?
+        if (is_array($this->wgcOptions)) {
+            $this->wgcOptions = array_map(function($item){
+                if (is_array($item)) {
+                    return $item;
+                }
+                return [
+                    'expire_ts' => $item,
+                    'sidebar_id' => 'wp_inactive_widgets'
+                ];
+            }, $this->wgcOptions);
+        }
+
         $this->wgcTriggers = apply_filters('wc_triggers', $this->wgc_get_option('widget_cache_action_trigger'));
         $this->wgcVaryParams = apply_filters('wc_varyparams', $this->wgc_get_option('widget_cache_vary_param'));
 
@@ -215,7 +236,7 @@ class WidgetCache
             echo '<style>.render-time{padding-left: 10px;padding-right: 10px;display: block;text-align: right;font-size: 11px;color: #666}</style>';
         }
         $id = $widget_object->id;
-        $expire_ts = isset($this->wgcOptions[$id]) ? intval($this->wgcOptions[$id]) : -1;
+        $expire_ts = $this->get_expire_ts($id);
 
         if (!($expire_ts > 0)) {
             return $instance;
@@ -360,7 +381,7 @@ class WidgetCache
         $update = apply_filters('wgc_force_update', false);
 
         $wc_options = $this->wgcOptions;
-        $expire_ts = isset($wc_options[$id]) ? intval($wc_options[$id]) : -1;
+        $expire_ts = $this->get_expire_ts($id);
 
         if ($output) {
             echo "<!--$this->plugin_name $this->plugin_version Begin -->\n";
@@ -387,7 +408,7 @@ class WidgetCache
                 $widget_rendering_time['widget-' . $id]['stop'] = $time_stop;
                 $widget_rendering_time['widget-' . $id]['took'] = $time_took;
                 if (current_user_can('manage_options')) {
-        ?>
+?>
                     <script>
                         window.widget_rendering_time = window.widget_rendering_time || [];
                         var widget_rendering_time_current_widget = {
