@@ -230,7 +230,7 @@ class WCache
         $f = @fopen($filename, 'w');
         if ($f) {
             if (flock($f, LOCK_EX)) {
-                fwrite($f, $this->__unpack_data($data));
+                fwrite($f, $this->__pack_data($data));
                 flock($f, LOCK_UN);
             }
             fclose($f);
@@ -268,7 +268,7 @@ class WCache
         $data = $this->__load_cache($keypath, $time);
 
         if ($data !== false) {
-            $data = $this->__pack_data($data);
+            $data = $this->__unpack_data($data);
         }
 
         //no cache available
@@ -282,14 +282,21 @@ class WCache
         return $data;
     }
 
-    private function __pack_data($data)
-    {
-        return maybe_unserialize($data);
-    }
-
+    /**
+     * Unpack the serialized data.
+     */
     private function __unpack_data($data)
     {
-        return maybe_serialize($data);
+        // Suppress E_NOTICE in case unserialize fails - it will then return false
+        return @unserialize($data);
+    }
+
+    /**
+     * Pack the data for storage.
+     */
+    private function __pack_data($data)
+    {
+        return serialize($data);
     }
 
     private function __encode_key($name)
