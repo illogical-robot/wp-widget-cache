@@ -8,8 +8,6 @@ Version: 0.26.12.1
 Author URI: https://github.com/rooseve/wp-widget-cache
 */
 
-use PhpParser\Node\Expr\Cast\Array_;
-
 class WidgetCache
 {
 
@@ -105,6 +103,7 @@ class WidgetCache
                         "delete_term"
                     )
                 );
+                $this->triggerActions = apply_filters('wgc_trigger_actions', $this->triggerActions);
             }
             if ($this->wgcVaryParamsEnabled) {
                 $this->varyParams = array(
