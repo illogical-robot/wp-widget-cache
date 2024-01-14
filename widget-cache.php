@@ -1,45 +1,46 @@
 <?php
 /*
-Plugin Name:WP Widget Cache
-Plugin URI: https://github.com/rooseve/wp-widget-cache
+Plugin Name: WP Widget Cache
+Plugin URI: https://github.com/illogical-robot/wp-widget-cache/
 Description: Cache the output of your blog widgets. Usually it will significantly reduce the sql queries to your database and speed up your site.
-Author: Andrew Zhang
-Version: 0.26.9
+Author: Apmirror.com, Andrew Zhang
+Version: 0.26.12.1
 Author URI: https://github.com/rooseve/wp-widget-cache
 */
-require_once(dirname(__FILE__) . "/inc/wcache.class.php");
 
 class WidgetCache
 {
 
-    var $plugin_name = 'WP Widget Cache';
+    public $plugin_name = 'WP Widget Cache';
 
-    var $plugin_version = '0.26.9';
+    public $plugin_version = '0.26.12.1';
 
-    var $wcache;
+    public $wcache;
+    public $wadmin;
 
-    var $cachedir;
+    public $cachedir;
 
-    var $wgcOptions;
+    public $wgcOptions;
 
-    var $wgcTriggers;
+    public $wgcTriggers;
 
-    var $wgcSettings;
+    public $wgcSettings;
 
-    var $wgcVaryParams;
+    public $wgcVaryParams;
 
-    var $wgcEnabled = true;
+    public $wgcEnabled = true;
 
-    var $wgcAutoExpireEnabled = true;
+    public $wgcAutoExpireEnabled = true;
 
-    var $wgcVaryParamsEnabled = false;
+    public $wgcVaryParamsEnabled = false;
 
-    var $triggerActions = array();
+    public $triggerActions = [];
 
-    var $varyParams = array();
+    public $varyParams = [];
 
-    function __construct()
+    public function __construct()
     {
+        require_once(__DIR__ . "/inc/wcache.class.php");
         $this->cachedir = WP_CONTENT_DIR . '/widget-cache';
 
         $url_info = parse_url(site_url());
@@ -47,133 +48,115 @@ class WidgetCache
         $shost = $this->array_element($url_info, 'host');
         $spath = $this->array_element($url_info, 'path');
 
+        $shost = apply_filters('wgc_cache_host', $shost);
+
         //maybe got many blogs under the same source
         $this->cachedir .= '/' . $shost . ($spath ? '_' . md5($spath) : '');
 
-        $this->wcache = new WCache ($this->cachedir);
+        $this->wcache = new WCache($this->cachedir);
 
         if (!(is_dir($this->cachedir) && is_writable($this->cachedir))) {
             add_action('admin_notices', array(
                 &$this,
                 'widget_cache_warning'
             ));
-        } else {
-            
-            $this->__wgc_load_opts();
-
-            if ($this->wgcEnabled) {
-                if ($this->wgcAutoExpireEnabled) {
-                    $this->triggerActions = array(
-                        "category" => array(
-                            "add_category",
-                            "create_category",
-                            "edit_category",
-                            "delete_category"
-                        ),
-                        "comment" => array(
-                            "comment_post",
-                            "edit_comment",
-                            "delete_comment",
-                            "pingback_post",
-                            "trackback_post",
-                            "wp_set_comment_status"
-                        ),
-                        "link" => array(
-                            "add_link",
-                            "edit_link",
-                            "delete_link"
-                        ),
-                        "post" => array(
-                            "publish_post",
-                            "publish_to_draft",
-                            "publish_to_pending",
-                            "publish_to_trash",
-                            "publish_to_future"
-                        ),
-                        "tag" => array(
-                            "create_term",
-                            "edit_term",
-                            "delete_term"
-                        )
-                    );
-                }
-                if ($this->wgcVaryParamsEnabled) {
-                    $this->varyParams = array(
-                        "userLevel" => array(
-                            &$this,
-                            'get_user_level'
-                        ),
-                        "userLoggedIn" => array(
-                            &$this,
-                            'get_is_user_logged_in'
-                        ),
-                        "userAgent" => array(
-                            &$this,
-                            'get_user_agent'
-                        ),
-                        "currentCategory" => array(
-                            &$this,
-                            'get_current_category'
-                        ),
-                        "amp" => array(
-                            &$this,
-                            'get_amp_vary_param'
-                        )
-                    );
-                }
-                add_action('wp_head', array(
-                    &$this,
-                    'widget_cache_redirect_callback'
-                ), 99999);
-            }
-
-            if (is_admin()) {
-                add_action('admin_menu', array(
-                    &$this,
-                    'wp_add_options_page'
-                ));
-                add_action('dashmenu', array(
-                    &$this,
-                    'dashboard_delete_wg_cache'
-                ));
-
-                if ($this->wgcEnabled) {
-                    add_action('sidebar_admin_page',
-                        array(
-                            &$this,
-                            'widget_cache_options_filter'
-                        ));
-                }
-
-                add_action('sidebar_admin_setup',
-                    array(
-                        &$this,
-                        'widget_cache_expand_control'
-                    ));
-
-                if (isset ($_GET ["wgdel"])) {
-                    add_action('admin_notices', array(
-                        &$this,
-                        'widget_wgdel_notice'
-                    ));
-                }
-            }
+            return;
         }
+
+        $this->__wgc_load_opts();
+
+        if ($this->wgcEnabled) {
+            if ($this->wgcAutoExpireEnabled) {
+                $this->triggerActions = array(
+                    "category" => array(
+                        "add_category",
+                        "create_category",
+                        "edit_category",
+                        "delete_category"
+                    ),
+                    "comment" => array(
+                        "comment_post",
+                        "edit_comment",
+                        "delete_comment",
+                        "pingback_post",
+                        "trackback_post",
+                        "wp_set_comment_status"
+                    ),
+                    "link" => array(
+                        "add_link",
+                        "edit_link",
+                        "delete_link"
+                    ),
+                    "post publish/unpublish" => array(
+                        "publish_post",
+                        "publish_to_draft",
+                        "publish_to_pending",
+                        "publish_to_trash",
+                        "publish_to_future"
+                    ),
+                    "post update" => array(
+                        "publish_to_publish"
+                    ),
+                    "tag" => array(
+                        "create_term",
+                        "edit_term",
+                        "delete_term"
+                    )
+                );
+                $this->triggerActions = apply_filters('wgc_trigger_actions', $this->triggerActions);
+            }
+            if ($this->wgcVaryParamsEnabled) {
+                $this->varyParams = array(
+                    "userLevel" => array(
+                        'WidgetCache',
+                        'get_user_level'
+                    ),
+                    "userLoggedIn" => array(
+                        'WidgetCache',
+                        'get_is_user_logged_in'
+                    ),
+                    "userAgent" => array(
+                        'WidgetCache',
+                        'get_user_agent'
+                    ),
+                    "currentCategory" => array(
+                        'WidgetCache',
+                        'get_current_category'
+                    ),
+                    "amp" => array(
+                        'WidgetCache',
+                        'get_amp_vary_param'
+                    )
+                );
+                $this->varyParams = apply_filters('wgc_vary_params', $this->varyParams);
+            }
+            add_action('widget_display_callback', array(
+                &$this,
+                'widget_display_callback'
+            ), PHP_INT_MAX, 3);
+        }
+        $this->admin_actions();
     }
 
-    function dashboard_delete_wg_cache()
+
+    public function get_expire_ts($id)
     {
-        if (function_exists('is_site_admin') && !is_site_admin()) {
-            return false;
-        }
-        if (function_exists('current_user_can') && !current_user_can('manage_options')) {
-            return false;
-        }
-        echo "<li><a href='" . wp_nonce_url('options-general.php?page=widget-cache.php&clear=1', 'widget-cache') .
-            "' title='Clear widget cache'>Clear widget cache</a></li>";
+        return (isset($this->wgcOptions[$id]) && isset($this->wgcOptions[$id]['expire_ts'])) ? intval($this->wgcOptions[$id]['expire_ts']) : -1;
+    }
+    public function array_element($array, $ele)
+    {
+        return $array[$ele] ?? false;
     }
 
-    function wgc_get_option($key, $default = array())
+    private function admin_actions()
+    {
+        if (is_admin()) {
+            require_once(__DIR__ . "/inc/admin.class.php");
+            $this->wadmin = new WCache_Admin($this);
+        }
+    }
+
+    private function wgc_get_option($key, $default = array())
     {
         $ops = get_option($key);
 
@@ -181,8 +164,8 @@ class WidgetCache
             $ops = $default;
         } else {
             foreach ($default as $k => $v) {
-                if (!isset ($ops [$k])) {
-                    $ops [$k] = $v;
+                if (!isset($ops[$k])) {
+                    $ops[$k] = $v;
                 }
             }
         }
@@ -190,130 +173,50 @@ class WidgetCache
         return $ops;
     }
 
-    function array_element($array, $ele)
-    {
-        return isset ($array [$ele]) ? $array [$ele] : false;
-    }
 
-    function __wgc_load_opts()
+    public function __wgc_load_opts()
     {
-        $this->wgcSettings = $this->wgc_get_option("widget_cache_settings",
+        $this->wgcSettings = $this->wgc_get_option(
+            "widget_cache_settings",
             array(
                 'wgc_disabled' => 0,
                 'wgc_ae_ops_disabled' => 0,
                 'wgc_vary_by_params_enabled' => 0
-            ));
+            )
+        );
 
         $this->wgcOptions = $this->wgc_get_option('widget_cache');
         $this->wgcTriggers = $this->wgc_get_option('widget_cache_action_trigger');
         $this->wgcVaryParams = $this->wgc_get_option('widget_cache_vary_param');
 
         $this->wgcOptions = apply_filters('wc_options', $this->wgc_get_option('widget_cache'));
+        
+        // convert the old settings to support also the sidebar id
+        // @todo: delete it, once all options are updated?
+        if (is_array($this->wgcOptions)) {
+            $this->wgcOptions = array_map(function($item){
+                if (is_array($item)) {
+                    return $item;
+                }
+                return [
+                    'expire_ts' => $item,
+                    'sidebar_id' => 'wp_inactive_widgets'
+                ];
+            }, $this->wgcOptions);
+        }
+
         $this->wgcTriggers = apply_filters('wc_triggers', $this->wgc_get_option('widget_cache_action_trigger'));
         $this->wgcVaryParams = apply_filters('wc_varyparams', $this->wgc_get_option('widget_cache_vary_param'));
 
-        $this->wgcEnabled = $this->wgcSettings ["wgc_disabled"] != "1";
+        $this->wgcEnabled = $this->wgcSettings["wgc_disabled"] != "1";
 
-        $this->wgcAutoExpireEnabled = $this->wgcSettings ["wgc_ae_ops_disabled"] != "1";
+        $this->wgcAutoExpireEnabled = $this->wgcSettings["wgc_ae_ops_disabled"] != "1";
 
-        $this->wgcVaryParamsEnabled = $this->wgcSettings ["wgc_vary_by_params_enabled"] == "1";
+        $this->wgcVaryParamsEnabled = $this->wgcSettings["wgc_vary_by_params_enabled"] == "1";
     }
 
-    function wgc_update_option($key, $value)
-    {
-        update_option($key, $value);
-    }
 
-    function wp_load_default_settings()
-    {
-        $wgc_ops = array();
-        $this->wgc_update_option('widget_cache_settings', $wgc_ops);
-        return $wgc_ops;
-    }
-
-    function wp_add_options_page()
-    {
-        if (function_exists('add_options_page')) {
-            add_options_page($this->plugin_name, $this->plugin_name, 'manage_options', basename(__FILE__),
-                array(
-                    &$this,
-                    'wp_options_subpanel'
-                ));
-        }
-    }
-
-    function wp_options_subpanel()
-    {
-        if (isset ($_POST ["widget_cache-clear"]) || isset ($_GET ['clear']) && $_GET ['clear'] == "1") {
-            $this->wcache->clear();
-            echo '<div id="message" class="updated fade"><p>Cache Cleared</p></div>';
-        }
-
-        if (isset ($_POST ["wp_wgc_submit"])) {
-            $wp_settings = array(
-                "wgc_disabled" => $this->array_element($_POST, 'wgc_enabled') ? false : "1",
-                "wgc_ae_ops_disabled" => $this->array_element($_POST, 'wgc_ae_ops_enabled') ? false : "1",
-                "wgc_vary_by_params_enabled" => $this->array_element($_POST, 'wgc_vary_by_params_enabled') ? '1' : false
-            );
-            $this->wgc_update_option("widget_cache_settings", $wp_settings);
-            echo '<div id="message" class="updated fade"><p>Options Updated</p></div>';
-        } else {
-            if (isset ($_POST ["wp_wgc_load_default"])) {
-                $wp_settings = $this->wp_load_default_settings();
-                echo '<div id="message" class="updated fade"><p>Options Reset</p></div>';
-            } else {
-                $wp_settings = $this->wgcSettings;
-            }
-        }
-        ?>
-        <div class="wrap">
-            <form
-                    action="<?php echo $_SERVER['PHP_SELF']; ?>?page=widget-cache.php"
-                    method="post">
-                <h2><?php echo $this->plugin_name; ?> Options</h2>
-                <table class="form-table">
-                    <tr valign="top">
-                        <td><input name="wgc_enabled" type="checkbox" id="wgc_enabled"
-                                   value="1"
-                                <?php checked('1', !($this->array_element($wp_settings, "wgc_disabled") == "1")); ?> />
-                            <label for=wgc_enabled><strong>Enable Widget Cache</strong> </label></td>
-                    </tr>
-                    <tr valign="top">
-                        <td><input name="wgc_ae_ops_enabled" type="checkbox"
-                                   id="wgc_ae_ops_enabled" value="1"
-                                <?php checked('1',
-                                    !($this->array_element($wp_settings, "wgc_ae_ops_disabled") == "1")); ?> />
-                            <label for=wgc_ae_ops_enabled><strong>Enable auto expire options
-                                    (e.g. When categories, comments, posts, tags changed)</strong> </label>
-                        </td>
-                    </tr>
-                    <tr valign="top">
-                        <td><input name="wgc_vary_by_params_enabled" type="checkbox"
-                                   id="wgc_vary_by_params_enabled" value="1"
-                                <?php checked('1',
-                                    ($this->array_element($wp_settings, "wgc_vary_by_params_enabled") == "1")); ?> />
-                            <label for=wgc_vary_by_params_enabled><strong>Enable vary by params
-                                    options (e.g. Vary by user levels, user agents)</strong> </label>
-                        </td>
-                    </tr>
-                </table>
-                <p class="submit">
-                    <input type="submit" name="wp_wgc_load_default"
-                           value="Reset to Default Options &raquo;" class="button"
-                           onclick="return confirm('Are you sure to reset options?')"/> <input
-                            type="submit" name="wp_wgc_submit" value="Save Options &raquo;"
-                            class="button" style="margin-left: 15px;"/>
-                </p>
-                <p>
-                    <input type="submit" name="widget_cache-clear" class="button"
-                           value="Clear all widgets cache(<?php echo $this->wcache->cachecount(); ?>)"/>
-                </p>
-            </form>
-        </div>
-        <?php
-    }
-
-    function widget_cache_warning()
+    public function widget_cache_warning()
     {
         $pdir = WP_CONTENT_DIR . '/';
 
@@ -326,302 +229,81 @@ class WidgetCache
         echo "<div id='widget-cache-warning' class='updated fade'><p><strong>WP Widget Cache not work!</strong><br/>$wmsg</p></div>";
     }
 
-    function widget_wgdel_notice()
+    public function widget_display_callback($instance, $widget_object, $args)
     {
-        $id = $_GET ["wgdel"];
-        $this->wcache->remove_group($id);
-        echo '<div id="widget-cache-notice" class="updated fade"><p>Delete widget cache: ' . esc_html($id) . '</p></div>';
-    }
-
-    function widget_cache_options_filter()
-    {
-        $wl_options = $this->wgcOptions;
-        ?>
-        <div class="wrap">
-            <form method="POST">
-                <a name="wgcoptions"></a>
-                <h2><?php echo $this->plugin_name; ?> Options</h2>
-                <p style="line-height: 30px;">
-                <span class="submit"> <input type="submit" name="widget_cache-clear"
-                                         class="button" id="widget_cache-options-submit"
-                                         value="Clear all widgets cache(<?php echo $this->wcache->cachecount(); ?>)"/>
-                </span>
-                </p>
-            </form>
-        </div>
-        <?php
-    }
-
-    function widget_cache_expand_control()
-    {
-        global $wp_registered_widgets, $wp_registered_widget_controls;
-
-        $wc_options = $this->wgcOptions;
-        $wc_trigers = $this->wgcTriggers;
-        $wc_varyparams = $this->wgcVaryParams;
-
-        if ($this->wgcEnabled) {
-            foreach ($wp_registered_widgets as $id => $widget) {
-                if (!$wp_registered_widget_controls [$id]) {
-                    wp_register_widget_control($id, $widget ['name'],
-                        array(
-                            &$this,
-                            'widget_cache_empty_control'
-                        ));
-                }
-
-                if (!array_key_exists(0, $wp_registered_widget_controls [$id] ['params']) ||
-                    is_array($wp_registered_widget_controls [$id] ['params'] [0])
-                ) {
-                    $wp_registered_widget_controls [$id] ['params'] [0] ['id_for_wc'] = $id;
-                } else {
-                    array_push($wp_registered_widget_controls [$id] ['params'], $id);
-                    $wp_registered_widget_controls [$id] ['height'] += 40;
-                }
-
-                $wp_registered_widget_controls [$id] ['callback_wc_redirect'] = $wp_registered_widget_controls [$id] ['callback'];
-                $wp_registered_widget_controls [$id] ['callback'] = array(
-                    &$this,
-                    'widget_cache_extra_control'
-                );
-            }
-
-            if ('post' == strtolower($_SERVER ['REQUEST_METHOD'])) {
-                if (isset ($_POST ["widget_cache-clear"])) {
-                    $this->wcache->clear();
-                    wp_redirect(add_query_arg('message', 'wgc#wgcoptions'));
-                    exit ();
-                }
-
-                foreach (( array )$_POST ['widget-id'] as $widget_number => $widget_id) {
-                    if (isset ($_POST [$widget_id . '-wgc-expire'])) {
-                        $wc_options [$widget_id] = intval($_POST [$widget_id . '-wgc-expire']);
-                    }
-                    if ($this->wgcAutoExpireEnabled) {
-                        if (isset ($_POST [$widget_id . '-wgc-trigger'])) {
-                            $wc_trigers [$widget_id] = ($_POST [$widget_id . '-wgc-trigger']);
-                        } else {
-                            unset ($wc_trigers [$widget_id]);
-                        }
-                    }
-                    if ($this->wgcVaryParamsEnabled) {
-                        if (isset ($_POST [$widget_id . '-widget_cache-varyparam'])) {
-                            $wc_varyparams [$widget_id] = ($_POST [$widget_id . '-widget_cache-varyparam']);
-                        } else {
-                            unset ($wc_varyparams [$widget_id]);
-                        }
-                    }
-                }
-
-                $regd_plus_new = array_merge(array_keys($wp_registered_widgets),
-                    array_values(( array )$_POST ['widget-id']));
-                foreach (array_keys($wc_options) as $key) {
-                    if (!in_array($key, $regd_plus_new)) {
-                        unset ($wc_options [$key]);
-                        if ($this->wgcAutoExpireEnabled) {
-                            unset ($wc_trigers [$key]);
-                        }
-                        if ($this->wgcVaryParamsEnabled) {
-                            unset ($wc_varyparams [$key]);
-                        }
-                    }
-                }
-
-                $this->wgc_update_option('widget_cache', $wc_options);
-
-                if ($this->wgcAutoExpireEnabled) {
-                    $this->wgc_update_option('widget_cache_action_trigger', $wc_trigers);
-                }
-
-                if ($this->wgcVaryParamsEnabled) {
-                    $this->wgc_update_option('widget_cache_vary_param', $wc_varyparams);
-                }
-
-                $this->__wgc_load_opts();
-            }
-        }
-    }
-
-    function widget_cache_empty_control()
-    {
-    }
-
-    function widget_cache_extra_control()
-    {
-        global $wp_registered_widget_controls;
-        $params = func_get_args();
-
-        $id = (is_array($params [0])) ? $params [0] ['id_for_wc'] : array_pop($params);
-
-        $id_disp = $id;
-
-        if ($this->wgcEnabled) // WP Widget Cache enabled
-        {
-            $wc_options = $this->wgcOptions;
-
-            $value = $this->array_element($wc_options, $id);
-
-            if (is_array($params [0]) && isset ($params [0] ['number'])) {
-                $number = $params [0] ['number'];
-
-                if ($number == -1) {
-                    $number = "%i%";
-                    $value = "";
-                }
-
-                $id_disp = $wp_registered_widget_controls [$id] ['id_base'] . '-' . $number;
-            }
-
-            $value = intval($value);
-            if ($value <= 0) {
-                $value = "";
-            }
-
-            $this->output_widget_options_panel($id_disp, $value);
-        } else {
-            echo '<label style="color: gray; font-style: italic; margin-bottom: 10px; line-height: 150%;">WP Widget Cache disabled</label>';
-        }
-
-        $callback = $wp_registered_widget_controls [$id] ['callback_wc_redirect'];
-        if (is_callable($callback)) {
-            call_user_func_array($callback, $params);
-        }
-    }
-
-    function output_widget_options_panel($id_disp, $expire_ts)
-    {
-        ?>
-        <fieldset
-                style="border: 1px solid #2583AD; padding: 3px 0 3px 5px; margin-bottom: 10px; line-height: 150%;">
-            <legend><?php echo $this->plugin_name; ?></legend>
-            <div>
-                Expire in <input type='text' name='<?php echo $id_disp; ?>-wgc-expire'
-                                 id='<?php echo $id_disp; ?>-wgc-expire'
-                                 value='<?php echo $expire_ts; ?>' size=6 style="padding: 0"/>
-                second(s) <br/>(Left empty means no cache) <br/> <a
-                        href='widgets.php?wgdel=<?php echo urlencode($id_disp) ?>'>Delete
-                    cache of this widget</a>
-            </div>
-            <?php if ($this->wgcAutoExpireEnabled): ?>
-                <div style="margin-top: 5px; border-top: 1px solid #ccc; clear: both;">
-                    <div>Auto expire when these things changed:</div>
-                    <?php foreach ($this->triggerActions as $tkey => $actArr): ?>
-                        <?php
-                        $checked = "";
-                        if ($this->array_element($this->wgcTriggers, $id_disp) &&
-                            in_array($tkey, $this->wgcTriggers [$id_disp])
-                        ) {
-                            $checked = "checked=\"checked\"";
-                        }
-                        ?>
-                        <div style="float: left; display: inline; margin: 2px 1px 1px 0;"
-                             nowrap="nowrap">
-                            <input type="checkbox" <?php echo $checked; ?>
-                                   id="<?php echo $id_disp; ?>-wgc-trigger-<?php echo $tkey; ?>"
-                                   name="<?php echo $id_disp; ?>-wgc-trigger[]"
-                                   value="<?php echo $tkey; ?>"/> <label
-                                    for="<?php echo $id_disp; ?>-wgc-trigger-<?php echo $tkey; ?>"><?php echo ucwords($tkey); ?></label>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-            <?php if ($this->wgcVaryParamsEnabled): ?>
-                <div style="margin-top: 5px; border-top: 1px solid #ccc; clear: both;">
-                    <div>Vary by:</div>
-                    <?php foreach ($this->varyParams as $vparam => $vfunc): ?>
-                        <?php
-                        $checked = "";
-                        if ($this->array_element($this->wgcVaryParams, $id_disp) &&
-                            in_array($vparam, $this->wgcVaryParams [$id_disp])
-                        ) {
-                            $checked = "checked=\"checked\"";
-                        }
-                        ?>
-                        <div style="float: left; display: inline; margin: 2px 1px 1px 0;"
-                             nowrap="nowrap">
-                            <input type="checkbox" <?php echo $checked; ?>
-                                   id="<?php echo $id_disp; ?>-widget_cache-varyparam-<?php echo $vparam; ?>"
-                                   name="<?php echo $id_disp; ?>-widget_cache-varyparam[]"
-                                   value="<?php echo $vparam; ?>"/> <label
-                                    for="<?php echo $id_disp; ?>-widget_cache-varyparam-<?php echo $vparam; ?>"><?php echo ucwords($vparam); ?></label>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </fieldset>
-        <?php
-    }
-
-    function widget_cache_redirect_callback()
-    {
-        global $wp_registered_widgets;
         if (is_user_logged_in() && current_user_can('manage_options')) {
             echo '<style>.render-time{padding-left: 10px;padding-right: 10px;display: block;text-align: right;font-size: 11px;color: #666}</style>';
         }
-        foreach ($wp_registered_widgets as $id => $widget) {
-            array_push($wp_registered_widgets [$id] ['params'], $id);
-            $wp_registered_widgets [$id] ['callback_wc_redirect'] = $wp_registered_widgets [$id] ['callback'];
-            $wp_registered_widgets [$id] ['callback'] = array(
-                &$this,
-                'widget_cache_redirected_callback'
-            );
-        }
-    }
+        $id = $widget_object->id;
+        $expire_ts = $this->get_expire_ts($id);
 
-    function get_user_level($all = false)
-    {
-        if($all){
-            return [10,7,2,1,0];
+        if (!($expire_ts > 0)) {
+            return $instance;
         }
-        $current_user = wp_get_current_user();
-        if (in_array('administrator', $current_user->roles)) {
-            return 10;
-        }
-        if (in_array('editor', $current_user->roles)) {
-            return 7;
-        }
-        if (in_array('author', $current_user->roles)) {
-            return 2;
-        }
-        if (in_array('contributor', $current_user->roles)) {
-            return 1;
-        }
-        if (in_array('subscriber', $current_user->roles)) {
-            return 0;
+        if (false === $instance || !is_subclass_of($widget_object, 'WP_Widget')) {
+            return $instance;
         }
 
+        $this->widget_cache_save($instance, $widget_object, $args);
         return false;
     }
 
-    function get_is_user_logged_in($all = false)
+    private static function get_user_level($all = false)
     {
-        if($all){
+        if ($all) {
+            return [10, 7, 2, 1, 0];
+        }
+        $current_user = wp_get_current_user();
+        $roles = $current_user->roles ?? '';
+        if (in_array('administrator', $roles)) {
+            return 10;
+        }
+        if (in_array('editor', $roles)) {
+            return 7;
+        }
+        if (in_array('author', $roles)) {
+            return 2;
+        }
+        if (in_array('contributor', $roles)) {
+            return 1;
+        }
+        if (in_array('subscriber', $roles)) {
+            return 0;
+        }
+
+        return '-1';
+    }
+
+    public static function get_is_user_logged_in($all = false)
+    {
+        if ($all) {
             return ['logged', 'not_logged'];
         }
         return (is_user_logged_in() ? 'logged' : 'not_logged');
     }
 
-    function get_user_agent($all = false)
+    public static function get_user_agent($all = false)
     {
-        if($all){
+        if ($all) {
             return false;
         }
-        return $_SERVER ['HTTP_USER_AGENT'];
+        return $_SERVER['HTTP_USER_AGENT'];
     }
 
-    function get_amp_vary_param($all = false){
-        if($all){
+    public static function get_amp_vary_param($all = false)
+    {
+        if ($all) {
             return ['amp', 'non-amp'];
         }
-        if(function_exists('is_amp_endpoint') && is_amp_endpoint()){
+        if (function_exists('is_amp_endpoint') && is_amp_endpoint()) {
             return 'amp';
         } else {
             return 'non-amp';
         }
     }
-    function get_current_category($all = false)
+    public static function get_current_category($all = false)
     {
-        if($all){
+        if ($all) {
             return false;
         }
         if (is_single()) {
@@ -629,7 +311,7 @@ class WidgetCache
             $categories = get_the_category($post->ID);
             $cidArr = array();
             foreach ($categories as $category) {
-                $cidArr [] = $category->cat_ID;
+                $cidArr[] = $category->cat_ID;
             }
             return join(",", $cidArr);
         } elseif (is_category()) {
@@ -639,15 +321,15 @@ class WidgetCache
         return false;
     }
 
-    function get_widget_cache_key($id)
+    public function get_widget_cache_key($id)
     {
         $wckey = "wgcache_" . $id;
 
-        if ($this->wgcVaryParamsEnabled && isset ($this->wgcVaryParams [$id])) {
-            foreach ($this->wgcVaryParams [$id] as $vparam) {
-                if ($this->varyParams [$vparam]) {
-                    if (is_callable($this->varyParams [$vparam])) {
-                        $temv = call_user_func($this->varyParams [$vparam]);
+        if ($this->wgcVaryParamsEnabled && isset($this->wgcVaryParams[$id])) {
+            foreach ($this->wgcVaryParams[$id] as $vparam) {
+                if ($this->varyParams[$vparam]) {
+                    if (is_callable($this->varyParams[$vparam])) {
+                        $temv = call_user_func($this->varyParams[$vparam]);
                         if ($temv) {
                             $wckey .= "_" . $temv;
                         }
@@ -664,20 +346,20 @@ class WidgetCache
      *
      * @param   string  $id  
      *
-     * @return  array        Array of cache keys with vary params.
+     * @return  array   Array of cache keys with vary params.
      */
-    function get_all_widget_cache_keys($id)
+    public function get_all_widget_cache_keys($id)
     {
         $wckey = "wgcache_" . $id;
         $wckeys = [];
 
-        if ($this->wgcVaryParamsEnabled && isset ($this->wgcVaryParams [$id])) {
-            foreach ($this->wgcVaryParams [$id] as $vparam) {
-                if ($this->varyParams [$vparam]) {
-                    if (is_callable($this->varyParams [$vparam])) {
-                        $temvs = call_user_func($this->varyParams [$vparam], true);
+        if ($this->wgcVaryParamsEnabled && isset($this->wgcVaryParams[$id])) {
+            foreach ($this->wgcVaryParams[$id] as $vparam) {
+                if ($this->varyParams[$vparam]) {
+                    if (is_callable($this->varyParams[$vparam])) {
+                        $temvs = call_user_func($this->varyParams[$vparam], true);
                         if (is_array($temvs)) {
-                            foreach($temvs as $temv){
+                            foreach ($temvs as $temv) {
                                 $wckeys[] = $wckey . "_" . $temv;
                             }
                         }
@@ -685,45 +367,36 @@ class WidgetCache
                 }
             }
         }
-        if(empty($wckeys)){
+        if (empty($wckeys)) {
             $wckeys = [$wckey];
         }
 
         return $wckeys;
     }
 
-    function widget_cache_redirected_callback()
+    public function widget_cache_save($instance, $widget_object, $args, $output = true)
     {
-        global $wp_registered_widgets;
-
-        // get all the passed params
-        $params = func_get_args();
-
-        // take off the widget ID
-        $id = array_pop($params);
-
-        $callback = $wp_registered_widgets [$id] ['callback_wc_redirect']; // find the real callback
-
-
-        if (!is_callable($callback)) {
-            return;
-        }
+        $id = $widget_object->id;
+        $update = apply_filters('wgc_force_update', false);
 
         $wc_options = $this->wgcOptions;
+        $expire_ts = $this->get_expire_ts($id);
 
-        $expire_ts = isset ($wc_options [$id]) ? intval($wc_options [$id]) : -1;
-
-        if ($expire_ts > 0) {
+        if ($output) {
             echo "<!--$this->plugin_name $this->plugin_version Begin -->\n";
 
             echo "<!--Cache $id for $expire_ts second(s)-->\n";
+        } else {
+            $this->wcache->disable_output = true;
+        }
 
-            if (is_user_logged_in()) {
-                $time_start = microtime(true);
-            }
-            while ($this->wcache->save($this->get_widget_cache_key($id), $expire_ts, null, $id)) {
-                call_user_func_array($callback, $params);
-            }
+        if (is_user_logged_in()) {
+            $time_start = microtime(true);
+        }
+        while ($this->wcache->save($this->get_widget_cache_key($id), $expire_ts, null, $id, $update)) {
+            $widget_object->widget($args, $instance);
+        }
+        if ($output) {
             if (is_user_logged_in()) {
                 global $widget_rendering_time;
                 $widget_rendering_time = $widget_rendering_time ?? [];
@@ -734,50 +407,52 @@ class WidgetCache
                 $widget_rendering_time['widget-' . $id]['stop'] = $time_stop;
                 $widget_rendering_time['widget-' . $id]['took'] = $time_took;
                 if (current_user_can('manage_options')) {
-                    ?>
-                        <script>
-                            window.widget_rendering_time = window.widget_rendering_time || [];
-                            var widget_rendering_time_current_widget = {
-                                id: "<?php echo $id; ?>",
-                                time: "<?php echo $time_took; ?>"
-                            };
-                            widget_rendering_time.push(widget_rendering_time_current_widget);
-                            var widget_rendering_time_container = document.createElement("div");
-                            widget_rendering_time_container.className = "render-time";
-                            widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s";
-                            document.getElementById(widget_rendering_time_current_widget.id).appendChild(widget_rendering_time_container);
-                        </script>
-                    <?php
+?>
+                    <script>
+                        window.widget_rendering_time = window.widget_rendering_time || [];
+                        var widget_rendering_time_current_widget = {
+                            id: "<?php echo $id; ?>",
+                            time: "<?php echo $time_took; ?>"
+                        };
+                        widget_rendering_time.push(widget_rendering_time_current_widget);
+                        var widget_rendering_time_container = document.createElement("div");
+                        widget_rendering_time_container.className = "render-time";
+                        widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s";
+                        var widget_container = document.getElementById(widget_rendering_time_current_widget.id) || (document.currentScript && document.currentScript.previousElementSibling) || false;
+                        if (widget_container) {
+                            widget_container.appendChild(widget_rendering_time_container);
+                        }
+                    </script>
+<?php
                 }
             }
 
             echo "<!--$this->plugin_name End -->\n";
-        } else {
-            call_user_func_array($callback, $params);
         }
+
+        $this->wcache->disable_output = false;
     }
-
-}
-
-function widget_cache_remove($id)
-{
-    global $widget_cache;
-    $widget_cache->wcache->remove_group($id);
 }
 
 function widget_cache_hook_trigger()
 {
-    global $widget_cache;
-    if (isset ($widget_cache->wgcTriggers) && $widget_cache->wgcTriggers) {
+    $widget_cache = get_WidgetCache_instance();
+    if ($widget_cache->wgcAutoExpireEnabled && isset($widget_cache->wgcTriggers) && $widget_cache->wgcTriggers) {
         foreach ($widget_cache->wgcTriggers as $wgid => $wgacts) {
             foreach ($wgacts as $wact) {
-                if (isset ($widget_cache->triggerActions [$wact])) {
-                    foreach ($widget_cache->triggerActions [$wact] as $wpaction) {
-                        add_action($wpaction,
-                            function() use ($wgid) {
-                                widget_cache_remove((string)addslashes($wgid));
+                if (isset($widget_cache->triggerActions[$wact])) {
+                    foreach ($widget_cache->triggerActions[$wact] as $wpaction) {
+                        add_action(
+                            $wpaction,
+                            function () use ($wgid) {
+                                $widget_cache = get_WidgetCache_instance();
+                                if (!apply_filters('wgc_cache_remove', false, (string) addslashes($wgid), $widget_cache)) {
+                                    $widget_cache->wcache->remove_group($wgid);
+                                }
                             },
-                            10, 1);
+                            10,
+                            1
+                        );
                     }
                 }
             }
@@ -785,10 +460,15 @@ function widget_cache_hook_trigger()
     }
 }
 
-add_action('init', function(){
-    global $widget_cache;
-    $widget_cache = new WidgetCache ();
-    if ($widget_cache->wgcAutoExpireEnabled) {
-        widget_cache_hook_trigger();
+function get_WidgetCache_instance()
+{
+    static $widget_cache = false;
+    if (!$widget_cache) {
+        $widget_cache = new WidgetCache();
     }
+    return $widget_cache;
+}
+
+add_action('init', function () {
+    widget_cache_hook_trigger();
 });
