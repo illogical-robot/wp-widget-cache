@@ -4,7 +4,7 @@ Plugin Name: WP Widget Cache
 Plugin URI: https://github.com/illogical-robot/wp-widget-cache/
 Description: Cache the output of your blog widgets. Usually it will significantly reduce the sql queries to your database and speed up your site.
 Author: Apmirror.com, Andrew Zhang
-Version: 0.26.12.1
+Version: 0.26.12.2
 Author URI: https://github.com/rooseve/wp-widget-cache
 */
 
@@ -13,7 +13,7 @@ class WidgetCache
 
     public $plugin_name = 'WP Widget Cache';
 
-    public $plugin_version = '0.26.12.1';
+    public $plugin_version = '0.26.12.2';
 
     public $wcache;
     public $wadmin;
@@ -190,11 +190,11 @@ class WidgetCache
         $this->wgcVaryParams = $this->wgc_get_option('widget_cache_vary_param');
 
         $this->wgcOptions = apply_filters('wc_options', $this->wgc_get_option('widget_cache'));
-        
+
         // convert the old settings to support also the sidebar id
         // @todo: delete it, once all options are updated?
         if (is_array($this->wgcOptions)) {
-            $this->wgcOptions = array_map(function($item){
+            $this->wgcOptions = array_map(function ($item) {
                 if (is_array($item)) {
                     return $item;
                 }
@@ -379,9 +379,11 @@ class WidgetCache
         $id = $widget_object->id;
         $update = apply_filters('wgc_force_update', false);
 
-        $wc_options = $this->wgcOptions;
         $expire_ts = $this->get_expire_ts($id);
 
+        if (is_user_logged_in()) {
+            $time_start = microtime(true);
+        }
         if ($output) {
             echo "<!--$this->plugin_name $this->plugin_version Begin -->\n";
 
@@ -389,42 +391,40 @@ class WidgetCache
         } else {
             $this->wcache->disable_output = true;
         }
-
-        if (is_user_logged_in()) {
-            $time_start = microtime(true);
-        }
-        while ($this->wcache->save($this->get_widget_cache_key($id), $expire_ts, null, $id, $update)) {
+        $cache_key = $this->get_widget_cache_key($id);
+        $this->wcache->cached[$cache_key] = 0;
+        while ($this->wcache->save($cache_key, $expire_ts, null, $id, $update)) {
             $widget_object->widget($args, $instance);
         }
-        if ($output) {
-            if (is_user_logged_in()) {
-                global $widget_rendering_time;
-                $widget_rendering_time = $widget_rendering_time ?? [];
-                $time_stop =  microtime(true);
-                $time_took =  number_format(($time_stop - $time_start), 5);
 
-                $widget_rendering_time['widget-' . $id]['start'] = $time_start;
-                $widget_rendering_time['widget-' . $id]['stop'] = $time_stop;
-                $widget_rendering_time['widget-' . $id]['took'] = $time_took;
-                if (current_user_can('manage_options')) {
+        if (is_user_logged_in()) {
+            global $widget_rendering_time;
+            $widget_rendering_time = $widget_rendering_time ?? [];
+            $time_stop =  microtime(true);
+            $time_took =  number_format(($time_stop - $time_start), 5);
+
+            $widget_rendering_time['widget-' . $id]['start'] = $time_start;
+            $widget_rendering_time['widget-' . $id]['stop'] = $time_stop;
+            $widget_rendering_time['widget-' . $id]['took'] = $time_took;
+            if ($output && current_user_can('manage_options') && apply_filters('wgc_show_render_time', true)) {
 ?>
-                    <script>
-                        window.widget_rendering_time = window.widget_rendering_time || [];
-                        var widget_rendering_time_current_widget = {
-                            id: "<?php echo $id; ?>",
-                            time: "<?php echo $time_took; ?>"
-                        };
-                        widget_rendering_time.push(widget_rendering_time_current_widget);
-                        var widget_rendering_time_container = document.createElement("div");
-                        widget_rendering_time_container.className = "render-time";
-                        widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s";
-                        var widget_container = document.getElementById(widget_rendering_time_current_widget.id) || (document.currentScript && document.currentScript.previousElementSibling) || false;
-                        if (widget_container) {
-                            widget_container.appendChild(widget_rendering_time_container);
-                        }
-                    </script>
+                <script>
+                    window.widget_rendering_time = window.widget_rendering_time || [];
+                    var widget_rendering_time_current_widget = {
+                        id: "<?php echo $id; ?>",
+                        time: "<?php echo $time_took; ?>",
+                        cached: "(<?php echo ($this->wcache->cached[$cache_key] == 1 ? 'c' : ($this->wcache->cached[$cache_key] == -1 ? 'nc' : 'failed')); ?>)"
+                    };
+                    widget_rendering_time.push(widget_rendering_time_current_widget);
+                    var widget_rendering_time_container = document.createElement("div");
+                    widget_rendering_time_container.className = "render-time";
+                    widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s" + widget_rendering_time_current_widget.cached;
+                    var widget_container = document.getElementById(widget_rendering_time_current_widget.id) || (document.currentScript && document.currentScript.previousElementSibling) || false;
+                    if (widget_container) {
+                        widget_container.appendChild(widget_rendering_time_container);
+                    }
+                </script>
 <?php
-                }
             }
 
             echo "<!--$this->plugin_name End -->\n";

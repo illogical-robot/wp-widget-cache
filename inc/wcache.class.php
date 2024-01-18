@@ -12,6 +12,9 @@ class WCache
     private $disable = false;
     public $disable_output = false;
     private $stack = [];
+
+    public $cached = [];
+
     /**
      *
      * @param string $path ,
@@ -84,8 +87,6 @@ class WCache
 
         //here the real data created
         if (count($this->stack) && $keypath == $this->stack[count($this->stack) - 1]) {
-            $ob_output = false;
-
             $ob_output = ob_get_contents();
             ob_end_clean();
             $this->__echo_output($ob_output);
@@ -116,6 +117,7 @@ class WCache
             //well no cache available
             if (is_int($res)) {
                 ob_start();
+                $this->cached[$key] = -1;
 
                 return $res;
             } else {
@@ -124,6 +126,9 @@ class WCache
                 $res_output = $res[$this->fld_output];
                 $res_cdata = $res[$this->fld_data];
                 $this->__echo_output($res_output);
+                if ($this->cached[$key] === 0) {
+                    $this->cached[$key] = 1;
+                }
 
                 if (is_array($cdata)) {
                     //copy the cdata
