@@ -381,9 +381,7 @@ class WidgetCache
 
         $expire_ts = $this->get_expire_ts($id);
 
-        if (is_user_logged_in()) {
-            $time_start = microtime(true);
-        }
+        $time_start = microtime(true);
         if ($output) {
             echo "<!--$this->plugin_name $this->plugin_version Begin -->\n";
 
