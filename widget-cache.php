@@ -4,7 +4,7 @@ Plugin Name: WP Widget Cache
 Plugin URI: https://github.com/illogical-robot/wp-widget-cache/
 Description: Cache the output of your blog widgets. Usually it will significantly reduce the sql queries to your database and speed up your site.
 Author: Apmirror.com, Andrew Zhang
-Version: 0.26.12.2
+Version: 0.26.12.3
 Author URI: https://github.com/rooseve/wp-widget-cache
 */
 
@@ -13,7 +13,7 @@ class WidgetCache
 
     public $plugin_name = 'WP Widget Cache';
 
-    public $plugin_version = '0.26.12.2';
+    public $plugin_version = '0.26.12.3';
 
     public $wcache;
     public $wadmin;
@@ -381,9 +381,7 @@ class WidgetCache
 
         $expire_ts = $this->get_expire_ts($id);
 
-        if (is_user_logged_in()) {
-            $time_start = microtime(true);
-        }
+        $time_start = microtime(true);
         if ($output) {
             echo "<!--$this->plugin_name $this->plugin_version Begin -->\n";
 
@@ -397,34 +395,38 @@ class WidgetCache
             $widget_object->widget($args, $instance);
         }
 
-        if (is_user_logged_in()) {
-            global $widget_rendering_time;
-            $widget_rendering_time = $widget_rendering_time ?? [];
-            $time_stop =  microtime(true);
-            $time_took =  number_format(($time_stop - $time_start), 5);
+        global $widget_rendering_time;
+        $widget_rendering_time = $widget_rendering_time ?? [];
+        $time_stop =  microtime(true);
+        $time_took =  number_format(($time_stop - $time_start), 5);
 
-            $widget_rendering_time['widget-' . $id]['start'] = $time_start;
-            $widget_rendering_time['widget-' . $id]['stop'] = $time_stop;
-            $widget_rendering_time['widget-' . $id]['took'] = $time_took;
-            if ($output && current_user_can('manage_options') && apply_filters('wgc_show_render_time', true)) {
+        $widget_rendering_time['widget-' . $id]['start'] = $time_start;
+        $widget_rendering_time['widget-' . $id]['stop'] = $time_stop;
+        $widget_rendering_time['widget-' . $id]['took'] = $time_took;
+        $widget_rendering_time['widget-' . $id]['cached'] = $this->wcache->cached[$cache_key];
+        $show_render_time = apply_filters('wgc_show_render_time', true, $id, $widget_rendering_time);
+        if (is_user_logged_in()) {
+            if ($output) {
+                if (current_user_can('manage_options') && $show_render_time) {
 ?>
-                <script>
-                    window.widget_rendering_time = window.widget_rendering_time || [];
-                    var widget_rendering_time_current_widget = {
-                        id: "<?php echo $id; ?>",
-                        time: "<?php echo $time_took; ?>",
-                        cached: "(<?php echo ($this->wcache->cached[$cache_key] == 1 ? 'c' : ($this->wcache->cached[$cache_key] == -1 ? 'nc' : 'failed')); ?>)"
-                    };
-                    widget_rendering_time.push(widget_rendering_time_current_widget);
-                    var widget_rendering_time_container = document.createElement("div");
-                    widget_rendering_time_container.className = "render-time";
-                    widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s" + widget_rendering_time_current_widget.cached;
-                    var widget_container = document.getElementById(widget_rendering_time_current_widget.id) || (document.currentScript && document.currentScript.previousElementSibling) || false;
-                    if (widget_container) {
-                        widget_container.appendChild(widget_rendering_time_container);
-                    }
-                </script>
+                    <script>
+                        window.widget_rendering_time = window.widget_rendering_time || [];
+                        var widget_rendering_time_current_widget = {
+                            id: "<?php echo $id; ?>",
+                            time: "<?php echo $time_took; ?>",
+                            cached: "(<?php echo ($widget_rendering_time['widget-' . $id]['cached'] == 1 ? 'c' : ($widget_rendering_time['widget-' . $id]['cached'] == -1 ? 'nc' : 'failed')); ?>)"
+                        };
+                        widget_rendering_time.push(widget_rendering_time_current_widget);
+                        var widget_rendering_time_container = document.createElement("div");
+                        widget_rendering_time_container.className = "render-time";
+                        widget_rendering_time_container.textContent = "Rendering time: " + widget_rendering_time_current_widget.time + "s " + widget_rendering_time_current_widget.cached;
+                        var widget_container = document.getElementById(widget_rendering_time_current_widget.id) || (document.currentScript && document.currentScript.previousElementSibling) || false;
+                        if (widget_container) {
+                            widget_container.appendChild(widget_rendering_time_container);
+                        }
+                    </script>
 <?php
+                }
             }
 
             echo "<!--$this->plugin_name End -->\n";
