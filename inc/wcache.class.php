@@ -104,7 +104,7 @@ class WCache
         } elseif (count($this->stack) && in_array($keypath, $this->stack)) {
             trigger_error(
                 "Cache stack problem: " . $this->stack[count($this->stack) - 1] . " not properly finished!",
-                E_USER_ERROR
+                E_USER_WARNING
             );
             return false;
         } else {
@@ -227,21 +227,24 @@ class WCache
 
         $filename = $this->path . $keypath;
 
-        if (file_exists($filename) && !is_writable($filename)) {
-            trigger_error("Cache file not writeable!", E_USER_ERROR);
+        $f = @fopen($filename, 'w');
+
+        // We can't write a file another user, such as root, created, but we can
+        // delete it from our cache directory and write a new one.
+        if (!$f && @unlink($filename)) {
+            $f = @fopen($filename, 'w');
+        }
+
+        if (!$f) {
+            trigger_error("Can't write the widget cache file $filename", E_USER_WARNING);
             return false;
         }
 
-        $f = @fopen($filename, 'w');
-        if ($f) {
-            if (flock($f, LOCK_EX)) {
-                fwrite($f, $this->__pack_data($data));
-                flock($f, LOCK_UN);
-            }
-            fclose($f);
-        } else {
-            return false;
+        if (flock($f, LOCK_EX)) {
+            fwrite($f, $this->__pack_data($data));
+            flock($f, LOCK_UN);
         }
+        fclose($f);
 
         return true;
     }
