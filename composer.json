@@ -4,6 +4,6 @@
     "homepage": "https://github.com/android-police/wp-widget-cache",
     "type": "wordpress-plugin",
     "require": {
-        "composer/installers": "~1.0"
+        "composer/installers": "~1.0 || ~2.0"
     }
 }
